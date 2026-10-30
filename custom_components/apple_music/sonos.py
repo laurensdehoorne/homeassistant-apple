@@ -276,14 +276,19 @@ async def async_join(hass: HomeAssistant, entity_ids: list[str]) -> None:
     """Group Sonos speakers, so they play one queue together."""
     first = entity_ids[0]
     state = hass.states.get(first)
-    members = state.attributes.get(ATTR_GROUP_MEMBERS) if state else None
-    if others := [e for e in entity_ids if e not in (members or [first])]:
-        await hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_JOIN,
-            {ATTR_ENTITY_ID: first, ATTR_GROUP_MEMBERS: others},
-            blocking=True,
-        )
+    members = (state.attributes.get(ATTR_GROUP_MEMBERS) if state else None) or [first]
+    if all(e in members for e in entity_ids):
+        return
+    # Home Assistant first takes a speaker out of a group it does not lead, so
+    # then the speakers it played with have to join again.
+    leads = members[0] == first
+    others = [e for e in entity_ids if e != first and not (leads and e in members)]
+    await hass.services.async_call(
+        MEDIA_PLAYER_DOMAIN,
+        SERVICE_JOIN,
+        {ATTR_ENTITY_ID: first, ATTR_GROUP_MEMBERS: others},
+        blocking=True,
+    )
 
 
 async def async_song_uri(hass: HomeAssistant, entity_id: str, song_id: str) -> str:

@@ -2,9 +2,11 @@
 
 const STRINGS = {
   en: {
-    search: "Search songs, albums and artists",
-    link: "Paste an Apple Music link",
-    invalid_link: "That is not an Apple Music link.",
+    search: "Search songs, albums, artists and playlists",
+    assist: "Ask Assist",
+    group: "Group speakers",
+    volume_down: "Volume down",
+    volume_up: "Volume up",
     playlists: "Playlists",
     no_playlists: "There are no Apple Music playlists in your Sonos favorites. Add them in the Sonos app.",
     top_songs: "Top songs",
@@ -29,9 +31,11 @@ const STRINGS = {
     queued: "Added to the queue of {speaker}",
   },
   nl: {
-    search: "Zoek nummers, albums en artiesten",
-    link: "Plak een Apple Music-link",
-    invalid_link: "Dat is geen Apple Music-link.",
+    search: "Zoek nummers, albums, artiesten en afspeellijsten",
+    assist: "Vraag het Assist",
+    group: "Speakers groeperen",
+    volume_down: "Zachter",
+    volume_up: "Luider",
     playlists: "Afspeellijsten",
     no_playlists: "Er staan geen Apple Music-afspeellijsten in je Sonos-favorieten. Voeg ze toe in de Sonos-app.",
     top_songs: "Top nummers",
@@ -61,9 +65,20 @@ const SPEAKER_KEY = "apple-music-card:speaker";
 // The catalog changes slowly, the charts once a day.
 const CACHE_MS = 10 * 60 * 1000;
 const SEARCH_DELAY_MS = 350;
+const VOLUME_STEP = 0.05;
+// How long a volume that was set counts, before the speaker reports it.
+const VOLUME_PENDING_MS = 2000;
 
 const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ESCAPES[c]);
+
+// Names compare without case and accents, so "cafe" finds "Café".
+const fold = (text) => String(text ?? "").normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+const matches = (name, query) =>
+  fold(query)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => fold(name).includes(word));
 
 // Apple serves the artwork in any size, the catalog hands out 600x600.
 const artwork = (url, size) => (url ? url.replace("600x600", `${size}x${size}`) : "");
@@ -73,23 +88,32 @@ const STYLE = `
   ha-card { overflow: hidden; }
   button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; padding: 0; }
   input, select { font: inherit; color: var(--primary-text-color); }
-  .player { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--divider-color); }
-  .player .art { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; flex: none; background: var(--secondary-background-color); display: flex; align-items: center; justify-content: center; color: var(--secondary-text-color); }
-  .player .meta { flex: 1; min-width: 0; }
-  .speaker { max-width: 100%; border: none; background: none; padding: 0; color: var(--secondary-text-color); font-size: 0.85em; cursor: pointer; }
-  .player .controls { display: flex; align-items: center; gap: 4px; flex: none; }
-  .volume { width: 88px; accent-color: var(--primary-color); }
+  .player { border-bottom: 1px solid var(--divider-color); }
+  .now { display: flex; align-items: center; gap: 12px; padding: 12px 16px 4px; }
+  .now .art { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; flex: none; background: var(--secondary-background-color); display: flex; align-items: center; justify-content: center; color: var(--secondary-text-color); }
+  .now .meta { flex: 1; min-width: 0; }
+  .now .controls { display: flex; align-items: center; gap: 4px; flex: none; }
+  .bar { display: flex; align-items: center; gap: 2px; padding: 0 8px 8px; }
+  .speaker { flex: 1; min-width: 0; height: 36px; border: none; background: none; padding: 0 4px; color: var(--secondary-text-color); font-size: 0.9em; text-overflow: ellipsis; cursor: pointer; }
+  .volume { width: 96px; accent-color: var(--primary-color); }
   .icon { width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--secondary-text-color); }
   .icon:hover, .icon:focus-visible { background: var(--secondary-background-color); color: var(--primary-text-color); outline: none; }
-  .icon.accent { color: var(--primary-color); }
+  .icon.accent, .icon[aria-expanded="true"] { color: var(--primary-color); }
+  .groups { display: flex; flex-direction: column; gap: 8px; padding: 4px 16px 12px; border-bottom: 1px solid var(--divider-color); }
+  .groups[hidden] { display: none; }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; }
+  .members { display: flex; flex-wrap: wrap; gap: 0 16px; }
+  .member { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+  .member input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary-color); cursor: pointer; }
+  .field .icon { margin-right: -8px; }
   .title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sub { color: var(--secondary-text-color); font-size: 0.875em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .field { display: flex; align-items: center; gap: 8px; margin: 12px 16px 0; padding: 0 12px; height: 44px; border-radius: 22px; background: var(--secondary-background-color); color: var(--secondary-text-color); }
   .field input { flex: 1; min-width: 0; border: none; background: none; outline: none; height: 100%; }
   .content { max-height: var(--apple-music-height, 520px); overflow-y: auto; padding: 8px 0 12px; }
   .status { padding: 24px 16px; text-align: center; color: var(--secondary-text-color); }
-  .tabs { display: flex; gap: 8px; padding: 4px 16px 8px; }
-  .tab { padding: 6px 14px; border-radius: 16px; border: 1px solid var(--divider-color); font-size: 0.9em; }
+  .tabs { display: flex; gap: 8px; padding: 4px 16px 8px; overflow-x: auto; }
+  .tab { flex: none; padding: 6px 14px; border-radius: 16px; border: 1px solid var(--divider-color); font-size: 0.9em; white-space: nowrap; }
   .tab[aria-pressed="true"] { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
   h3 { margin: 12px 16px 4px; font-size: 1em; font-weight: 600; }
   .row { display: flex; align-items: center; gap: 12px; padding: 4px 8px 4px 16px; }
@@ -128,6 +152,8 @@ class AppleMusicCard extends HTMLElement {
     this._tab = "playlist";
     this._items = new Map();
     this._cache = new Map();
+    this._levels = new Map();
+    this._presetList = [];
     this._renderId = 0;
   }
 
@@ -138,6 +164,10 @@ class AppleMusicCard extends HTMLElement {
   setConfig(config) {
     if (config.entities !== undefined && !Array.isArray(config.entities)) {
       throw new Error("entities must be a list of Sonos media players");
+    }
+    const groups = config.groups ?? [];
+    if (!Array.isArray(groups) || groups.some((group) => !group?.name || !Array.isArray(group.entities))) {
+      throw new Error("groups must be a list of groups, each with a name and entities");
     }
     this._config = config;
     if (this._hass) {
@@ -176,28 +206,41 @@ class AppleMusicCard extends HTMLElement {
       <style>${STYLE}</style>
       <ha-card>
         <div class="player"></div>
+        <div class="groups" hidden></div>
         <label class="field">
           <ha-icon icon="mdi:magnify"></ha-icon>
           <input class="search" type="search" placeholder="${esc(t.search)}" aria-label="${esc(t.search)}">
+          <button class="icon assist" title="${esc(t.assist)}"><ha-icon icon="mdi:microphone"></ha-icon></button>
         </label>
         <div class="content"></div>
       </ha-card>`;
     const root = this.shadowRoot;
     root.querySelector(".search").addEventListener("input", (ev) => this._onSearch(ev.target.value));
+    root.querySelector(".assist").addEventListener("click", () => this._assist());
     root.querySelector(".content").addEventListener("click", (ev) => this._onClick(ev));
-    root.querySelector(".content").addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter" && ev.target.classList.contains("link")) {
-        this._playLink();
-      }
-    });
     const player = root.querySelector(".player");
     player.addEventListener("click", (ev) => this._onPlayerClick(ev));
     player.addEventListener("change", (ev) => this._onPlayerChange(ev));
+    const groups = root.querySelector(".groups");
+    groups.addEventListener("click", (ev) => this._onGroupsClick(ev));
+    groups.addEventListener("change", (ev) => this._onGroupsChange(ev));
     this._speakerList = undefined;
-    this._playerState = undefined;
+    this._playerStates = undefined;
     this._updateSpeakers();
     this._updatePlayer();
     this._render();
+  }
+
+  // Home Assistant opens Assist for a hass-action event, and listens right away
+  // when the pipeline understands speech and the browser may use the microphone.
+  _assist() {
+    this.dispatchEvent(
+      new CustomEvent("hass-action", {
+        detail: { config: { tap_action: { action: "assist", start_listening: true } }, action: "tap" },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   // Speakers
@@ -256,26 +299,44 @@ class AppleMusicCard extends HTMLElement {
     } catch (_err) {
       // Private windows can refuse storage, the first speaker will do.
     }
-    // A speaker that joined a group is chosen through its group.
+    // A speaker that joined a group is chosen through its group. The card follows
+    // the speaker that was chosen, also while its new group still has to show up.
     const find = (id) => targets.find((target) => target.members.includes(id))?.id;
-    this._speaker = find(this._speaker) ?? find(saved) ?? targets[0]?.id;
-    this._playerState = undefined;
+    this._speaker = find(this._chosen) ?? find(this._speaker) ?? find(saved) ?? targets[0]?.id;
+    this._playerStates = undefined;
+    this._updateGroups();
+  }
+
+  _choose(speaker) {
+    this._chosen = speaker;
+    this._speaker = speaker;
+    try {
+      localStorage.setItem(SPEAKER_KEY, speaker);
+    } catch (_err) {
+      // Remembering the speaker is a convenience.
+    }
+    this._speakerList = undefined;
+    this._updateSpeakers();
+    this._updatePlayer();
   }
 
   _updatePlayer() {
     const player = this.shadowRoot.querySelector(".player");
-    const state = this._hass.states[this._speaker];
-    if (!player || state === this._playerState) {
+    // The volume of a group follows all its speakers.
+    const states = this._members().map((id) => this._hass.states[id]);
+    const known = this._playerStates;
+    if (!player || (known?.length === states.length && states.every((state, i) => state === known[i]))) {
       return;
     }
     // Leave the volume alone while it is being dragged.
     if (this.shadowRoot.activeElement?.classList.contains("volume")) {
       return;
     }
-    this._playerState = state;
+    this._playerStates = states;
     const t = this._t;
+    const state = this._hass.states[this._speaker];
     if (!state) {
-      player.innerHTML = `<div class="sub">${esc(t.no_speakers)}</div>`;
+      player.innerHTML = `<div class="status">${esc(t.no_speakers)}</div>`;
       return;
     }
     const a = state.attributes;
@@ -286,39 +347,49 @@ class AppleMusicCard extends HTMLElement {
     const options = this._targets()
       .map((target) => `<option value="${esc(target.id)}" ${target.id === this._speaker ? "selected" : ""}>${esc(target.name)}</option>`)
       .join("");
+    const grouping = !this.shadowRoot.querySelector(".groups").hidden;
     player.innerHTML = `
-      ${art}
-      <div class="meta">
-        <div class="title">${esc(a.media_title || t.nothing_playing)}</div>
-        <div class="sub">${esc(a.media_artist ?? "")}</div>
-        <select class="speaker" aria-label="${esc(t.speaker)}">${options}</select>
+      <div class="now">
+        ${art}
+        <div class="meta">
+          <div class="title">${esc(a.media_title || t.nothing_playing)}</div>
+          <div class="sub">${esc(a.media_artist ?? "")}</div>
+        </div>
+        <div class="controls">
+          <button class="icon" data-service="media_play_pause" title="${esc(t.play)}">
+            <ha-icon icon="${playing ? "mdi:pause" : "mdi:play"}"></ha-icon>
+          </button>
+          <button class="icon" data-service="media_next_track"><ha-icon icon="mdi:skip-next"></ha-icon></button>
+        </div>
       </div>
-      <div class="controls">
-        <button class="icon" data-service="media_play_pause" title="${esc(t.play)}">
-          <ha-icon icon="${playing ? "mdi:pause" : "mdi:play"}"></ha-icon>
+      <div class="bar">
+        <button class="icon" data-action="groups" title="${esc(t.group)}" aria-expanded="${grouping}">
+          <ha-icon icon="mdi:speaker-multiple"></ha-icon>
         </button>
-        <button class="icon" data-service="media_next_track"><ha-icon icon="mdi:skip-next"></ha-icon></button>
+        <select class="speaker" aria-label="${esc(t.speaker)}">${options}</select>
+        <button class="icon" data-volume="-1" title="${esc(t.volume_down)}"><ha-icon icon="mdi:volume-minus"></ha-icon></button>
         <input class="volume" type="range" min="0" max="100" value="${Math.round(this._volume() * 100)}" aria-label="Volume">
+        <button class="icon" data-volume="1" title="${esc(t.volume_up)}"><ha-icon icon="mdi:volume-plus"></ha-icon></button>
       </div>`;
   }
 
   _onPlayerClick(ev) {
-    const button = ev.target.closest("[data-service]");
-    if (button) {
+    const button = ev.target.closest("button");
+    if (button?.dataset.service) {
       this._hass.callService("media_player", button.dataset.service, {}, { entity_id: this._speaker });
+    } else if (button?.dataset.volume) {
+      this._setVolume(this._volume() + Number(button.dataset.volume) * VOLUME_STEP);
+    } else if (button?.dataset.action === "groups") {
+      const panel = this.shadowRoot.querySelector(".groups");
+      panel.hidden = !panel.hidden;
+      button.setAttribute("aria-expanded", String(!panel.hidden));
+      this._updateGroups();
     }
   }
 
   _onPlayerChange(ev) {
     if (ev.target.classList.contains("speaker")) {
-      this._speaker = ev.target.value;
-      try {
-        localStorage.setItem(SPEAKER_KEY, this._speaker);
-      } catch (_err) {
-        // Remembering the speaker is a convenience.
-      }
-      this._playerState = undefined;
-      this._updatePlayer();
+      this._choose(ev.target.value);
     } else if (ev.target.classList.contains("volume")) {
       this._setVolume(Number(ev.target.value) / 100);
       ev.target.blur();
@@ -329,30 +400,139 @@ class AppleMusicCard extends HTMLElement {
     return this._target()?.members ?? [this._speaker];
   }
 
+  // A speaker takes a moment to report a new volume, so quick changes build on
+  // the volume that was asked for.
+  _level(id) {
+    const pending = this._levels.get(id);
+    if (pending && Date.now() - pending.time < VOLUME_PENDING_MS) {
+      return pending.level;
+    }
+    return this._hass.states[id]?.attributes.volume_level ?? 0;
+  }
+
   // A group's volume is the average of its speakers, like in the Sonos app.
   _volume() {
-    const volumes = this._members().map((id) => this._hass.states[id]?.attributes.volume_level ?? 0);
+    const volumes = this._members().map((id) => this._level(id));
     return volumes.reduce((sum, volume) => sum + volume, 0) / volumes.length;
   }
 
   // Moving a group's volume moves every speaker by as much, which keeps their balance.
   _setVolume(volume) {
+    const members = this._members();
     const change = volume - this._volume();
-    for (const id of this._members()) {
-      const current = this._hass.states[id]?.attributes.volume_level ?? 0;
-      const level = this._members().length > 1 ? current + change : volume;
-      this._hass.callService(
-        "media_player",
-        "volume_set",
-        { volume_level: Math.round(Math.min(1, Math.max(0, level)) * 100) / 100 },
-        { entity_id: id },
-      );
+    for (const id of members) {
+      const level = members.length > 1 ? this._level(id) + change : volume;
+      const rounded = Math.round(Math.min(1, Math.max(0, level)) * 100) / 100;
+      this._levels.set(id, { level: rounded, time: Date.now() });
+      this._hass.callService("media_player", "volume_set", { volume_level: rounded }, { entity_id: id });
+    }
+  }
+
+  // Grouping
+
+  // Preset groups are the card's own, then the media player groups of Home
+  // Assistant, as long as the card lists all their speakers.
+  _presets() {
+    const speakers = this._speakers();
+    const helpers = Object.values(this._hass.entities ?? {})
+      .filter((e) => e.platform === "group" && e.entity_id.startsWith("media_player.") && !e.hidden)
+      .map((e) => ({ name: this._name(e.entity_id), members: this._hass.states[e.entity_id]?.attributes.entity_id ?? [] }));
+    return [...(this._config.groups ?? []).map((group) => ({ name: group.name, members: group.entities })), ...helpers].filter(
+      (preset) => preset.members.length > 1 && preset.members.every((id) => speakers.includes(id)),
+    );
+  }
+
+  _updateGroups() {
+    const panel = this.shadowRoot.querySelector(".groups");
+    if (!panel || panel.hidden) {
+      return;
+    }
+    const members = this._members();
+    this._presetList = this._presets();
+    const presets = this._presetList
+      .map((preset, index) => {
+        const active = preset.members.length === members.length && preset.members.every((id) => members.includes(id));
+        const names = preset.members.map((id) => this._name(id)).join(", ");
+        return `<button class="chip ${active ? "primary" : ""}" data-preset="${index}" title="${esc(names)}">
+          <ha-icon icon="mdi:speaker-multiple" style="--mdc-icon-size: 18px"></ha-icon>${esc(preset.name)}</button>`;
+      })
+      .join("");
+    const speakers = this._speakers()
+      .map((id) => {
+        const checked = members.includes(id);
+        // A speaker on its own has no group to leave.
+        const alone = checked && members.length === 1;
+        return `<label class="member">
+          <input type="checkbox" data-member="${esc(id)}" ${checked ? "checked" : ""} ${alone ? "disabled" : ""}>${esc(this._name(id))}
+        </label>`;
+      })
+      .join("");
+    panel.innerHTML = `${presets ? `<div class="presets">${presets}</div>` : ""}<div class="members">${speakers}</div>`;
+  }
+
+  // Sonos groups always have a coordinator, which Home Assistant lists first.
+  _leader(id) {
+    return this._hass.states[id]?.attributes.group_members?.[0] ?? id;
+  }
+
+  async _onGroupsChange(ev) {
+    const id = ev.target.dataset.member;
+    if (!id) {
+      return;
+    }
+    let done;
+    if (ev.target.checked) {
+      done = await this._group("join", this._leader(this._speaker), { group_members: [id] });
+    } else {
+      if (id === (this._chosen ?? this._speaker)) {
+        // The group plays on without the speaker, and the card stays with the group.
+        this._chosen = this._members().find((member) => member !== id);
+      }
+      done = await this._group("unjoin", id);
+    }
+    if (!done) {
+      this._updateGroups();
+    }
+  }
+
+  async _onGroupsClick(ev) {
+    const chip = ev.target.closest("[data-preset]");
+    if (!chip) {
+      return;
+    }
+    const { members } = this._presetList[Number(chip.dataset.preset)];
+    // The music plays on when the chosen speaker is in the preset.
+    const leader = members.includes(this._speaker) ? this._speaker : members[0];
+    const current = this._hass.states[leader]?.attributes.group_members ?? [leader];
+    // Home Assistant first takes a speaker out of a group it does not lead.
+    const leads = current[0] === leader;
+    const leave = leads ? current.filter((id) => !members.includes(id)) : [];
+    const join = members.filter((id) => id !== leader && !(leads && current.includes(id)));
+    if (leave.length && !(await this._group("unjoin", leave))) {
+      return;
+    }
+    if (join.length && !(await this._group("join", leader, { group_members: join }))) {
+      return;
+    }
+    this._choose(leader);
+  }
+
+  async _group(service, entityId, data = {}) {
+    try {
+      await this._hass.callService("media_player", service, data, { entity_id: entityId });
+      return true;
+    } catch (_err) {
+      // Home Assistant shows the error.
+      return false;
     }
   }
 
   // Catalog
 
-  _fetch(message) {
+  _fetch(message, cache = true) {
+    if (!cache) {
+      return this._hass.callWS(message);
+    }
     const key = JSON.stringify(message);
     const cached = this._cache.get(key);
     if (cached && Date.now() - cached.time < CACHE_MS) {
@@ -368,6 +548,16 @@ class AppleMusicCard extends HTMLElement {
     for (const item of items) {
       this._items.set(`${item.media_type}/${item.id}`, item);
     }
+    return items;
+  }
+
+  // The Sonos favorites belong to the household, any of its speakers has them.
+  // They are read every time, so a new favorite shows right away.
+  async _playlists() {
+    if (!this._speaker) {
+      return [];
+    }
+    const { items } = await this._fetch({ type: "apple_music/playlists", entity_id: this._speaker }, false);
     return items;
   }
 
@@ -387,17 +577,6 @@ class AppleMusicCard extends HTMLElement {
     }
     const message = enqueue === "next" || enqueue === "add" ? t.queued : t.playing;
     this._toast(message.replace("{speaker}", this._name(this._speaker)));
-  }
-
-  _playLink() {
-    const input = this.shadowRoot.querySelector(".link");
-    const url = input.value.trim();
-    if (!url.startsWith("https://music.apple.com/")) {
-      this._toast(this._t.invalid_link);
-      return;
-    }
-    input.value = "";
-    this._play(url, "replace");
   }
 
   _toast(message) {
@@ -440,8 +619,6 @@ class AppleMusicCard extends HTMLElement {
     } else if (action === "tab") {
       this._tab = tab;
       this._render();
-    } else if (action === "link") {
-      this._playLink();
     }
   }
 
@@ -476,13 +653,7 @@ class AppleMusicCard extends HTMLElement {
       ]
         .map(([tab, label]) => `<button class="tab" data-action="tab" data-tab="${tab}" aria-pressed="${tab === this._tab}">${esc(label)}</button>`)
         .join("");
-      return `
-        <label class="field" style="margin-top: 4px; margin-bottom: 12px">
-          <ha-icon icon="mdi:link-variant"></ha-icon>
-          <input class="link" type="url" placeholder="${esc(t.link)}" aria-label="${esc(t.link)}">
-          <button class="icon accent" data-action="link" title="${esc(t.play)}"><ha-icon icon="mdi:play"></ha-icon></button>
-        </label>
-        <div class="tabs">${tabs}</div>`;
+      return `<div class="tabs">${tabs}</div>`;
     }
     const back = `<button class="back" data-action="back"><ha-icon icon="mdi:chevron-left"></ha-icon>${esc(t.back)}</button>`;
     const isArtist = item.media_type === "artist";
@@ -520,8 +691,17 @@ class AppleMusicCard extends HTMLElement {
       return this._section(t.songs, this._songs(songs), songs) + this._section(t.albums, this._albums(albums), albums);
     }
     if (this._query) {
-      const { songs, albums, artists } = await this._fetch({ type: "apple_music/search", query: this._query });
+      const query = this._query;
+      // Apple's search knows no playlists, the Sonos favorites have them.
+      const [{ songs, albums, artists }, playlists] = await Promise.all([
+        this._fetch({ type: "apple_music/search", query }),
+        this._playlists().then(
+          (items) => items.filter((item) => matches(item.name, query)),
+          () => [],
+        ),
+      ]);
       const body =
+        this._section(t.playlists, this._albums(playlists), playlists) +
         this._section(t.songs, this._songs(songs), songs) +
         this._section(t.albums, this._albums(albums), albums) +
         this._section(t.artists, this._artists(artists), artists);
@@ -531,8 +711,7 @@ class AppleMusicCard extends HTMLElement {
       if (!this._speaker) {
         return `<div class="status">${esc(t.no_speakers)}</div>`;
       }
-      // The Sonos favorites belong to the household, any of its speakers has them.
-      const { items } = await this._fetch({ type: "apple_music/playlists", entity_id: this._speaker });
+      const items = await this._playlists();
       return items.length ? this._albums(items) : `<div class="status">${esc(t.no_playlists)}</div>`;
     }
     const { items } = await this._fetch({ type: "apple_music/charts", media_type: this._tab });

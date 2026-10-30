@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 ACCOUNT = AppleMusicAccount(serial="28", token="1a2b3c4d")
+# A speaker that leads a group, and one that plays alone.
+LEADER = "media_player.eetruimte"
+STANDALONE = "media_player.badkamer"
 
 
 def test_find_account() -> None:
@@ -137,20 +140,29 @@ def test_find_playlist_artwork() -> None:
 
 
 @pytest.mark.parametrize(
-    ("members", "joined"),
+    ("members", "speakers", "joined"),
     [
-        ([SONOS_PLAYER], [GROUPED_PLAYER]),
-        ([SONOS_PLAYER, GROUPED_PLAYER], None),
+        ([SONOS_PLAYER], [SONOS_PLAYER, GROUPED_PLAYER], [GROUPED_PLAYER]),
+        ([SONOS_PLAYER, GROUPED_PLAYER], [SONOS_PLAYER, GROUPED_PLAYER], None),
+        ([LEADER, SONOS_PLAYER, GROUPED_PLAYER], [SONOS_PLAYER, GROUPED_PLAYER], None),
+        (
+            [LEADER, SONOS_PLAYER, GROUPED_PLAYER],
+            [SONOS_PLAYER, GROUPED_PLAYER, STANDALONE],
+            [GROUPED_PLAYER, STANDALONE],
+        ),
     ],
 )
 async def test_join(
-    hass: HomeAssistant, members: list[str], joined: list[str] | None
+    hass: HomeAssistant,
+    members: list[str],
+    speakers: list[str],
+    joined: list[str] | None,
 ) -> None:
     """Test speakers are grouped only when they play apart."""
     calls = async_mock_service(hass, "media_player", "join")
     hass.states.async_set(SONOS_PLAYER, "idle", {"group_members": members})
 
-    await async_join(hass, [SONOS_PLAYER, GROUPED_PLAYER])
+    await async_join(hass, speakers)
 
     if joined is None:
         assert not calls

@@ -16,7 +16,8 @@ when your account has another id.
 ## What you get
 
 - **An Apple Music dashboard card**: your playlists, search, the charts, albums
-  and artists, and the speaker or Sonos group that plays, in one card.
+  and artists, the speaker or Sonos group that plays, grouping, volume and a button
+  to ask Assist, in one card.
 - **Voice commands**: say "speel Oasis in de woonkamer" or "play Parachutes in the
   kitchen" to Assist. AI conversation agents get a tool to play music too.
 - **Apple Music in the Sonos media browser**: the top songs and albums of your
@@ -72,21 +73,34 @@ entities:
   - media_player.woonkamer
 # Optional: how high the list of songs and albums gets, 520px by default.
 height: 640px
+# Optional: groups to make with one tap.
+groups:
+  - name: Keuken + woonkamer
+    entities:
+      - media_player.keuken
+      - media_player.woonkamer
 ```
 
-The card shows what plays on the chosen speaker, a search box, a box to paste a
-link in, your playlists, and the top songs and albums. Tap a song to play it right
-away, or ⋮ to play it next, add it to the queue or replace the queue. Playlists,
-albums and artists open, with buttons to play them. The card remembers the speaker
+The card shows what plays on the chosen speaker, a search box, your playlists, and
+the top songs and albums. Tap a song to play it right away, or ⋮ to play it next,
+add it to the queue or replace the queue. Playlists, albums and artists open, with
+buttons to play them. Searching finds playlists too. The card remembers the speaker
 per browser.
 
 **Playlists** are the Apple Music playlists in your Sonos favorites. To add one,
-give it a heart in the Sonos app.
+give it a heart in the Sonos app: the card reads the favorites every time.
 
 **Sonos groups** are one choice in the speaker list, like "Era 300 + Era 100", since
-grouped speakers play one queue. The volume slider then moves every speaker in the
-group by as much. Group and ungroup speakers in the Sonos app, or with a card like
-the [Sonos Card](https://github.com/punxaphil/custom-sonos-card).
+grouped speakers play one queue. The volume slider and the − and + buttons then
+move every speaker in the group by as much. The group button next to the speaker
+list groups speakers: tick the speakers to play together, or tap a preset group.
+The presets are the `groups` of the card and your media player groups in Home
+Assistant (**Settings → Devices & services → Helpers → Group → Media player
+group**) whose speakers the card all shows.
+
+**The microphone** opens Assist and listens right away, so you can say "speel Oasis
+in de keuken". Browsers only let Assist use the microphone over HTTPS, in the
+Home Assistant app it always works. Without it you type to Assist instead.
 
 ### Media browser
 
