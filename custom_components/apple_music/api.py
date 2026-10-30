@@ -42,11 +42,15 @@ _CHART_FEEDS = {
     Kind.PLAYLIST: "playlists",
 }
 
-# The links Sonos can play, in the order to try them: a song on an album page first.
+# The links that play, in the order to try them: a song on an album page first.
 _LINKS = (
     (Kind.SONG, re.compile(r"https://music\.apple\.com/\w+/album/[^/?]+/\d+\?i=(\d+)")),
     (Kind.SONG, re.compile(r"https://music\.apple\.com/\w+/song/(?:[^/?]+/)?(\d+)")),
     (Kind.ALBUM, re.compile(r"https://music\.apple\.com/\w+/album/(?:[^/?]+/)?(\d+)")),
+    (
+        Kind.ARTIST,
+        re.compile(r"https://music\.apple\.com/\w+/artist/(?:[^/?]+/)?(\d+)"),
+    ),
     (
         Kind.PLAYLIST,
         re.compile(
@@ -61,7 +65,7 @@ class AppleMusicError(Exception):
 
 
 def parse_url(url: str) -> tuple[Kind, str] | None:
-    """Return the kind and id of an Apple Music song, album or playlist link."""
+    """Return the kind and id of an Apple Music song, album, artist or playlist link."""
     for kind, pattern in _LINKS:
         if match := pattern.match(url):
             return kind, match.group(1)

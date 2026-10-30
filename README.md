@@ -1,7 +1,8 @@
 # Apple Music for Home Assistant
 
 Search Apple Music and play it on your Sonos speakers from Home Assistant: from
-the media browser, from automations and scripts, or by voice through Assist.
+a dashboard card, the media browser, automations and scripts, or by voice through
+Assist.
 
 Sonos streams the music itself, with the Apple Music account linked in the Sonos
 app. Home Assistant only tells the speakers what to play, so you get the same
@@ -9,16 +10,18 @@ quality as in the Sonos app, lossless included.
 
 The integration finds that account in your Sonos favorites and queues music the
 way the Sonos app does. Home Assistant's own Sonos integration plays Apple Music
-links with a fixed account id, which Sonos refuses on most systems with UPnP
-error 800 or 804.
+links with a fixed account id, which Sonos refuses with UPnP error 800 or 804
+when your account has another id.
 
 ## What you get
 
+- **An Apple Music dashboard card**: search, the charts, albums and artists, and
+  the speaker that plays, in one card.
 - **Apple Music in the Sonos media browser**: the top songs and albums of your
   country, albums, artists, and a search box. Songs play right away, albums open
   to their songs.
 - **`apple_music.play`**: play the best match for a song, an album or the top songs
-  of an artist, or any Apple Music song, album or playlist link. Replace the
+  of an artist, or any Apple Music song, album, artist or playlist link. Replace the
   queue, play now, play next or add to the queue.
 - **`apple_music.search`**: search the catalog and get the matches back, for
   scripts and AI voice assistants.
@@ -53,6 +56,26 @@ Home Assistant configuration and restart Home Assistant.
 country of your Apple Music account. The country decides the catalog and charts.
 
 ## Usage
+
+### Dashboard card
+
+The integration adds the card to every dashboard, there is no resource to add.
+Add a card, pick **Apple Music**, or add it in YAML:
+
+```yaml
+type: custom:apple-music-card
+# Optional: the Sonos speakers to choose from, all of them by default.
+entities:
+  - media_player.keuken
+  - media_player.woonkamer
+# Optional: how high the list of songs and albums gets, 520px by default.
+height: 640px
+```
+
+The card shows what plays on the chosen speaker, a search box, a box to paste a
+link in, and the top songs and albums. Tap a song to play it right away, or ⋮ to
+play it next, add it to the queue or replace the queue. Albums and artists open,
+with buttons to play them. The card remembers the speaker per browser.
 
 ### Media browser
 
@@ -95,8 +118,8 @@ data:
   enqueue: add
 ```
 
-Play a song, album or playlist link, from **Share → Copy Link** in the Music
-app:
+Play a song, album, artist or playlist link, from **Share → Copy Link** in the
+Music app. An artist link plays the top songs of the artist:
 
 ```yaml
 action: apple_music.play

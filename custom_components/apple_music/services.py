@@ -101,8 +101,10 @@ async def _async_find(
     return found
 
 
-async def _async_from_url(catalog: AppleMusicCatalog, url: str) -> CatalogItem:
-    """Return the song, album or playlist an Apple Music link points to."""
+async def _async_from_url(
+    catalog: AppleMusicCatalog, url: str, limit: int
+) -> list[CatalogItem]:
+    """Return what an Apple Music link plays: an item, or an artist's top songs."""
     if (parsed := parse_url(url)) is None:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
@@ -110,12 +112,28 @@ async def _async_from_url(catalog: AppleMusicCatalog, url: str) -> CatalogItem:
             translation_placeholders={"url": url},
         )
     kind, item_id = parsed
+    if kind == Kind.ARTIST:
+        try:
+            songs = await catalog.artist_songs(item_id, limit)
+        except AppleMusicError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="request_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        if not songs:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_results",
+                translation_placeholders={"query": url},
+            )
+        return songs
     if kind == Kind.SONG:
         # The title, artist and album show in the Sonos queue, but are not required.
         with suppress(AppleMusicError):
             if song := await catalog.song(item_id):
-                return song
-    return CatalogItem(kind=kind, id=item_id, name="")
+                return [song]
+    return [CatalogItem(kind=kind, id=item_id, name="")]
 
 
 @callback
@@ -136,7 +154,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         if url := call.data.get(ATTR_URL):
-            items = [await _async_from_url(catalog, url)]
+            items = await _async_from_url(catalog, url, call.data[ATTR_LIMIT])
         else:
             items = await _async_find(
                 catalog,

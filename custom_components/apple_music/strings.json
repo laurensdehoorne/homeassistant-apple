@@ -29,7 +29,7 @@
       "message": "Apple Music can only play on Sonos speakers, {entity_id} is not one."
     },
     "invalid_url": {
-      "message": "{url} is not an Apple Music song, album or playlist link."
+      "message": "{url} is not an Apple Music song, album, artist or playlist link."
     },
     "not_searchable": {
       "message": "Searching for {media_type} is not supported."
@@ -88,7 +88,7 @@
         },
         "url": {
           "name": "Link",
-          "description": "An Apple Music song, album or playlist link to play instead of searching. Your own playlists work once shared: Share → Copy Link."
+          "description": "An Apple Music song, album, artist or playlist link to play instead of searching, from Share → Copy Link. An artist link plays their top songs."
         },
         "enqueue": {
           "name": "Queue",

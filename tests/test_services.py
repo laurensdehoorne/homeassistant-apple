@@ -171,6 +171,38 @@ async def test_play_url(
     assert len(response["items"]) == 1
 
 
+async def test_play_artist_url(
+    hass: HomeAssistant, soco: MagicMock, mock_catalog: AiohttpClientMocker
+) -> None:
+    """Test an artist link plays the top songs of the artist."""
+    response = await _play(
+        hass, url="https://music.apple.com/be/artist/stromae/270954369", limit=3
+    )
+
+    assert _queued(soco) == [(SANTE, 0), (DEFILER, 0), (ALORS_ON_DANSE, 0)]
+    assert len(response["items"]) == 3
+    assert mock_catalog.mock_calls[-1][1].query["limit"] == "3"
+
+
+async def test_play_artist_url_failed(
+    hass: HomeAssistant, soco: MagicMock, mock_catalog: AiohttpClientMocker
+) -> None:
+    """Test an artist link without songs, or without Apple Music, plays nothing."""
+    url = "https://music.apple.com/be/artist/stromae/270954369"
+    mock_catalog.clear_requests()
+    mock_catalog.get(LOOKUP_URL, json={"resultCount": 0, "results": []})
+    with pytest.raises(ServiceValidationError) as err:
+        await _play(hass, url=url)
+    assert err.value.translation_key == "no_results"
+
+    mock_catalog.clear_requests()
+    mock_catalog.get(LOOKUP_URL, status=503)
+    with pytest.raises(HomeAssistantError) as failed:
+        await _play(hass, url=url)
+    assert failed.value.translation_key == "request_failed"
+    soco.avTransport.AddURIToQueue.assert_not_called()
+
+
 async def test_play_url_without_catalog(
     hass: HomeAssistant, soco: MagicMock, mock_catalog: AiohttpClientMocker
 ) -> None:
@@ -218,7 +250,10 @@ async def test_play_only_on_sonos(hass: HomeAssistant, soco: MagicMock) -> None:
 @pytest.mark.parametrize(
     ("data", "translation_key"),
     [
-        ({"url": "https://music.apple.com/be/artist/stromae/270954369"}, "invalid_url"),
+        (
+            {"url": "https://music.apple.com/be/curator/apple-music/976439548"},
+            "invalid_url",
+        ),
         ({"url": "https://open.spotify.com/track/1"}, "invalid_url"),
         ({"query": "anything", "media_type": "playlist"}, "not_searchable"),
     ],

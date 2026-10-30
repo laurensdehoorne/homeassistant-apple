@@ -9,8 +9,10 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import AppleMusicCatalog
+from .card import async_register_card
 from .const import CONF_STOREFRONT, DOMAIN
 from .services import async_setup_services
+from .websocket import async_register_commands
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -22,8 +24,12 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa: ARG001 # pylint: disable=unused-argument
-    """Register the Apple Music actions."""
+    """Register the Apple Music actions and the dashboard card."""
     async_setup_services(hass)
+    async_register_commands(hass)
+    # The frontend is set up first when it is used, the card is of no use without it.
+    if "frontend" in hass.config.components:
+        await async_register_card(hass)
     return True
 
 

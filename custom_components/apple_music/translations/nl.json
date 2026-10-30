@@ -29,7 +29,7 @@
       "message": "Apple Music speelt alleen af op Sonos-speakers, {entity_id} is er geen."
     },
     "invalid_url": {
-      "message": "{url} is geen Apple Music-link naar een nummer, album of playlist."
+      "message": "{url} is geen Apple Music-link naar een nummer, album, artiest of playlist."
     },
     "not_searchable": {
       "message": "Zoeken naar {media_type} wordt niet ondersteund."
@@ -88,7 +88,7 @@
         },
         "url": {
           "name": "Link",
-          "description": "Een Apple Music-link naar een nummer, album of playlist, in plaats van zoeken. Je eigen playlists werken als je ze deelt: Deel → Kopieer link."
+          "description": "Een Apple Music-link naar een nummer, album, artiest of playlist, in plaats van zoeken, via Deel → Kopieer link. Een artiestlink speelt de top nummers."
         },
         "enqueue": {
           "name": "Wachtrij",
