@@ -147,13 +147,13 @@ def test_find_library_playlist() -> None:
         "&amp;flags=8300&amp;sn=28</res></item></DIDL-Lite>"
     )
 
-    (playlist,) = find_playlists(favorites)
+    playlists = find_playlists(favorites)
 
-    assert playlist == CatalogItem(
-        Kind.PLAYLIST, "p.0EMR6fVXaXKR", "Dinner with Friends"
-    )
-    assert (
-        playlist.url("be") == "https://music.apple.com/library/playlist/p.0EMR6fVXaXKR"
+    assert playlists == [
+        CatalogItem(Kind.PLAYLIST, "p.0EMR6fVXaXKR", "Dinner with Friends")
+    ]
+    assert playlists[0].url("be") == (
+        "https://music.apple.com/library/playlist/p.0EMR6fVXaXKR"
     )
 
 
