@@ -38,13 +38,22 @@
       "message": "Nothing found on Apple Music for \"{query}\"."
     },
     "not_playable": {
-      "message": "{identifier} cannot be played."
+      "message": "{identifier} cannot be played from the media browser. Play albums and playlists with the Apple Music play action."
     },
     "unknown_item": {
       "message": "{identifier} cannot be browsed."
     },
     "request_failed": {
       "message": "Apple Music could not be reached: {error}"
+    },
+    "no_account": {
+      "message": "Sonos has no Apple Music favorite to find your Apple Music account with. Add an Apple Music playlist to your Sonos favorites in the Sonos app."
+    },
+    "speaker_unavailable": {
+      "message": "The Sonos speaker {entity_id} is not available."
+    },
+    "sonos_error": {
+      "message": "The Sonos speaker could not play it: {error}"
     }
   },
   "selector": {
@@ -79,7 +88,7 @@
         },
         "url": {
           "name": "Link",
-          "description": "An Apple Music song, album or playlist link to play instead of searching."
+          "description": "An Apple Music song, album or playlist link to play instead of searching. Your own playlists work once shared: Share → Copy Link."
         },
         "enqueue": {
           "name": "Queue",

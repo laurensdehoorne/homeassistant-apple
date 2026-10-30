@@ -21,7 +21,6 @@ from .const import (
     CHARTS_URL,
     DOMAIN,
     LOOKUP_URL,
-    PLAYABLE_KINDS,
     REQUEST_TIMEOUT,
     SEARCH_URL,
     Kind,
@@ -43,11 +42,17 @@ _CHART_FEEDS = {
     Kind.PLAYLIST: "playlists",
 }
 
-# The link formats Sonos understands, matching soco.plugins.sharelink.AppleMusicShare.
-_PLAYABLE_URL = re.compile(
-    r"https://music\.apple\.com/\w+/"
-    r"(?:album/[^/]+/\d+\?i=\d+|song/[^/]+/\d+|album/[^/]+/\d+"
-    r"|playlist/[^/]+/pl\.[-a-zA-Z0-9]+)"
+# The links Sonos can play, in the order to try them: a song on an album page first.
+_LINKS = (
+    (Kind.SONG, re.compile(r"https://music\.apple\.com/\w+/album/[^/?]+/\d+\?i=(\d+)")),
+    (Kind.SONG, re.compile(r"https://music\.apple\.com/\w+/song/(?:[^/?]+/)?(\d+)")),
+    (Kind.ALBUM, re.compile(r"https://music\.apple\.com/\w+/album/(?:[^/?]+/)?(\d+)")),
+    (
+        Kind.PLAYLIST,
+        re.compile(
+            r"https://music\.apple\.com/\w+/playlist/(?:[^/?]+/)?(pl\.[-a-zA-Z0-9]+)"
+        ),
+    ),
 )
 
 
@@ -55,14 +60,17 @@ class AppleMusicError(Exception):
     """Raised when the Apple Music catalog cannot be reached."""
 
 
-def is_playable_url(url: str) -> bool:
-    """Return whether Sonos can play this Apple Music link."""
-    return _PLAYABLE_URL.match(url) is not None
+def parse_url(url: str) -> tuple[Kind, str] | None:
+    """Return the kind and id of an Apple Music song, album or playlist link."""
+    for kind, pattern in _LINKS:
+        if match := pattern.match(url):
+            return kind, match.group(1)
+    return None
 
 
 def share_url(storefront: str, kind: Kind, item_id: str) -> str:
-    """Return the music.apple.com link, which Sonos plays as a share link."""
-    # Apple redirects any slug to the canonical one and Sonos only reads the id.
+    """Return the music.apple.com link of a catalog item."""
+    # Apple redirects any slug to the canonical one.
     return f"https://music.apple.com/{storefront}/{kind}/-/{item_id}"
 
 
@@ -76,11 +84,6 @@ class CatalogItem:
     artist: str | None = None
     album: str | None = None
     artwork_url: str | None = None
-
-    @property
-    def playable(self) -> bool:
-        """Return whether Sonos can play this item."""
-        return self.kind in PLAYABLE_KINDS
 
     @property
     def identifier(self) -> str:
@@ -205,6 +208,12 @@ class AppleMusicCatalog:
         )
         items = (_parse_lookup_item(result) for result in data.get("results", []))
         return [item for item in items if item is not None and item.kind == kind]
+
+    async def song(self, song_id: str) -> CatalogItem | None:
+        """Return a song by its id."""
+        data = await self._get(LOOKUP_URL, {"id": song_id, "country": self.storefront})
+        items = (_parse_lookup_item(result) for result in data.get("results", []))
+        return next((item for item in items if item and item.kind == Kind.SONG), None)
 
     async def album_songs(self, album_id: str) -> list[CatalogItem]:
         """Return the songs on an album, in album order."""

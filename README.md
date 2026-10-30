@@ -7,10 +7,16 @@ Sonos streams the music itself, with the Apple Music account linked in the Sonos
 app. Home Assistant only tells the speakers what to play, so you get the same
 quality as in the Sonos app, lossless included.
 
+The integration finds that account in your Sonos favorites and queues music the
+way the Sonos app does. Home Assistant's own Sonos integration plays Apple Music
+links with a fixed account id, which Sonos refuses on most systems with UPnP
+error 800 or 804.
+
 ## What you get
 
-- **Apple Music in the Sonos media browser**: the top songs, albums and playlists
-  of your country, albums, artists, and a search box.
+- **Apple Music in the Sonos media browser**: the top songs and albums of your
+  country, albums, artists, and a search box. Songs play right away, albums open
+  to their songs.
 - **`apple_music.play`**: play the best match for a song, an album or the top songs
   of an artist, or any Apple Music song, album or playlist link. Replace the
   queue, play now, play next or add to the queue.
@@ -22,6 +28,8 @@ quality as in the Sonos app, lossless included.
 - Home Assistant 2026.10 or newer with the [Sonos integration](https://www.home-assistant.io/integrations/sonos/).
 - An Apple Music subscription, linked to your Sonos system in the Sonos app
   (**Settings → Services & Voice**).
+- At least one Apple Music song, album or playlist in your Sonos favorites. The
+  integration reads the account to play with from it.
 
 No Apple Developer account or password is needed. Searching uses Apple's public
 iTunes Search API, the charts come from Apple's public RSS feeds.
@@ -87,8 +95,8 @@ data:
   enqueue: add
 ```
 
-Play a playlist, from **Share → Copy link** in the Music app. Your own playlists
-work once you share them:
+Play a song, album or playlist link, from **Share → Copy Link** in the Music
+app:
 
 ```yaml
 action: apple_music.play
@@ -110,7 +118,8 @@ response_variable: results
 ```
 
 Every match has a `name`, `artist`, `album`, `url`, `artwork_url` and a
-`media_content_id` you can pass to `media_player.play_media` on a Sonos speaker.
+`media_content_id`. Pass the `url` to `apple_music.play`, or the
+`media_content_id` of a song to `media_player.play_media` on a Sonos speaker.
 
 ### Voice
 
@@ -150,11 +159,14 @@ sequence:
 
 ## Limitations
 
-- Only Sonos speakers play Apple Music links. Other speakers are refused with an
-  error.
+- Only Sonos speakers play Apple Music. Other speakers are refused with an error.
+- The media browser plays songs only. Sonos needs metadata to queue a whole album
+  or playlist, which `media_player.play_media` cannot pass, so play those with
+  `apple_music.play`.
 - Without an Apple Developer account there is no access to your library, so
   searching finds songs, albums and artists, not playlists. Play playlists by
-  link, or save them as Sonos favorites.
+  link, or save your own playlists as Sonos favorites: they then show under
+  **Favorites** in the Sonos media browser.
 - Artist radio stations are not supported, playing an artist plays their most
   popular songs.
 - Apple's chart feeds go down now and then. The media browser then shows the last

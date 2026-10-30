@@ -1,0 +1,22 @@
+{
+  "feed": {
+    "results": [
+      {
+        "artistName": "Tate McRae",
+        "id": "6822497774",
+        "name": "Housewife",
+        "kind": "songs",
+        "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/2b/96/2b/2b962b77-3a04-5650-aefd-37ecfce04b03/196874840146.jpg/100x100bb.jpg",
+        "url": "https://music.apple.com/be/album/housewife/6822497770?i=6822497774"
+      },
+      {
+        "artistName": "Vacra & La Rvfleuze",
+        "id": "6809781929",
+        "name": "Fille à Papa",
+        "kind": "songs",
+        "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/83/50/f0/8350f0d2-eb4f-c247-5294-b5bdcb550c7e/cover.jpg/100x100bb.jpg",
+        "url": "https://music.apple.com/be/album/fille-a-papa/6809781922?i=6809781929"
+      }
+    ]
+  }
+}

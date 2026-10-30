@@ -38,7 +38,6 @@ class Kind(StrEnum):
     PLAYLIST = "playlist"
 
 
-# Sonos plays Apple Music links of these kinds (see soco.plugins.sharelink).
-PLAYABLE_KINDS: Final = frozenset({Kind.SONG, Kind.ALBUM, Kind.PLAYLIST})
 SEARCHABLE_KINDS: Final = (Kind.SONG, Kind.ALBUM, Kind.ARTIST)
-CHART_KINDS: Final = (Kind.SONG, Kind.ALBUM, Kind.PLAYLIST)
+# Playlists are left out, Sonos can only play them through the play action.
+CHART_KINDS: Final = (Kind.SONG, Kind.ALBUM)

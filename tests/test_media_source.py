@@ -16,10 +16,11 @@ from homeassistant.components.media_player import (
 
 from custom_components.apple_music.const import CHARTS_URL
 
-from .conftest import ALBUM_ID, ARTIST_ID, OTHER_PLAYER, SONOS_PLAYER
+from .conftest import ALBUM_ID, ARTIST_ID, OTHER_PLAYER, SONG_ID, SONOS_PLAYER
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from unittest.mock import MagicMock
 
     from homeassistant.core import HomeAssistant
     from pytest_homeassistant_custom_component.test_util.aiohttp import (
@@ -46,25 +47,22 @@ async def test_browse_root(hass: HomeAssistant) -> None:
     assert [(child.title, child.media_content_id) for child in _children(root)] == [
         ("Top songs", f"{ROOT}/charts/song"),
         ("Top albums", f"{ROOT}/charts/album"),
-        ("Top playlists", f"{ROOT}/charts/playlist"),
     ]
 
 
 async def test_browse_chart(hass: HomeAssistant) -> None:
-    """Test a chart lists playable items Sonos shows in its media browser."""
-    chart = await media_source.async_browse_media(hass, f"{ROOT}/charts/playlist")
+    """Test the songs chart lists songs Sonos shows and plays in its browser."""
+    chart = await media_source.async_browse_media(hass, f"{ROOT}/charts/song")
 
-    assert chart.title == "Top playlists"
-    assert [child.title for child in _children(chart)] == ["LE CODE", "Hits français"]
-    playlist = _children(chart)[0]
-    assert playlist.media_content_id == (
-        f"{ROOT}/playlist/pl.084e56c4114a4a199e582aa7db6e7e56"
-    )
-    assert playlist.media_class == MediaClass.PLAYLIST
-    assert playlist.media_content_type.startswith("audio/")
-    assert playlist.can_play
-    assert not playlist.can_expand
-    assert (playlist.thumbnail or "").endswith("600x600SC.DN02.jpg?l=en-GB")
+    assert chart.title == "Top songs"
+    assert len(_children(chart)) == 2
+    song = _children(chart)[0]
+    assert song.title == "Housewife · Tate McRae"
+    assert song.media_content_id == f"{ROOT}/song/6822497774"
+    assert song.media_class == MediaClass.TRACK
+    assert song.media_content_type.startswith("audio/")
+    assert song.can_play
+    assert not song.can_expand
 
 
 async def test_browse_chart_failed(hass: HomeAssistant) -> None:
@@ -77,21 +75,21 @@ async def test_browse_chart_cached(
     hass: HomeAssistant, mock_catalog: AiohttpClientMocker
 ) -> None:
     """Test the last chart is shown when Apple's chart feed is down."""
-    await media_source.async_browse_media(hass, f"{ROOT}/charts/playlist")
+    await media_source.async_browse_media(hass, f"{ROOT}/charts/song")
 
     mock_catalog.clear_requests()
     mock_catalog.get(
-        CHARTS_URL.format(storefront="be", limit=50, feed="playlists"), status=502
+        CHARTS_URL.format(storefront="be", limit=50, feed="songs"), status=502
     )
     with patch("custom_components.apple_music.api.time.monotonic", return_value=10**9):
-        chart = await media_source.async_browse_media(hass, f"{ROOT}/charts/playlist")
+        chart = await media_source.async_browse_media(hass, f"{ROOT}/charts/song")
 
     assert len(mock_catalog.mock_calls) == 1
     assert len(_children(chart)) == 2
 
 
 async def test_browse_album(hass: HomeAssistant) -> None:
-    """Test an album lists its songs."""
+    """Test an album opens to its songs."""
     album = await media_source.async_browse_media(hass, f"{ROOT}/album/{ALBUM_ID}")
 
     assert album.title == "Parachutes"
@@ -105,19 +103,25 @@ async def test_browse_album(hass: HomeAssistant) -> None:
 
 
 async def test_browse_artist(hass: HomeAssistant) -> None:
-    """Test an artist lists the top songs and the albums."""
+    """Test an artist lists the top songs and the albums, which open."""
     artist = await media_source.async_browse_media(hass, f"{ROOT}/artist/{ARTIST_ID}")
 
     assert artist.title == "Stromae"
     assert [
-        (child.media_class, child.title.split(" · ")[0]) for child in _children(artist)
+        (child.media_class, child.title.split(" · ")[0], child.can_play)
+        for child in _children(artist)
     ] == [
-        (MediaClass.TRACK, "Santé"),
-        (MediaClass.TRACK, "Défiler (Bande originale de la capsule No. 5 Mosaert)"),
-        (MediaClass.TRACK, "Alors on danse (Radio Edit)"),
-        (MediaClass.ALBUM, "Racine carrée"),
-        (MediaClass.ALBUM, "Cheese"),
+        (MediaClass.TRACK, "Santé", True),
+        (
+            MediaClass.TRACK,
+            "Défiler (Bande originale de la capsule No. 5 Mosaert)",
+            True,
+        ),
+        (MediaClass.TRACK, "Alors on danse (Radio Edit)", True),
+        (MediaClass.ALBUM, "Racine carrée", False),
+        (MediaClass.ALBUM, "Cheese", False),
     ]
+    assert all(child.can_expand for child in _children(artist)[3:])
 
 
 async def test_browse_unknown(hass: HomeAssistant) -> None:
@@ -150,32 +154,44 @@ async def test_search(
     assert [item.media_class for item in result.result] == expected
 
 
-async def test_resolve_on_sonos(hass: HomeAssistant) -> None:
-    """Test songs, albums and playlists resolve to links Sonos plays."""
-    for identifier, url in (
-        ("song/1122782283", "https://music.apple.com/be/song/-/1122782283"),
-        ("album/1122782080", "https://music.apple.com/be/album/-/1122782080"),
-        ("playlist/pl.abc", "https://music.apple.com/be/playlist/-/pl.abc"),
-    ):
-        media = await media_source.async_resolve_media(
-            hass, f"{ROOT}/{identifier}", SONOS_PLAYER
-        )
-        assert media.url == url
+async def test_resolve_song(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test a song resolves to its URI with the household's Apple Music account."""
+    media = await media_source.async_resolve_media(
+        hass, f"{ROOT}/song/{SONG_ID}", SONOS_PLAYER
+    )
+
+    assert media.url == f"x-sonos-http:song%3a{SONG_ID}.mp4?sid=204&flags=8232&sn=28"
+    assert media.mime_type == "audio/mp4"
+    soco.avTransport.AddURIToQueue.assert_not_called()
 
 
 @pytest.mark.parametrize(
     ("identifier", "target", "translation_key"),
     [
-        ("song/1122782283", OTHER_PLAYER, "sonos_only"),
+        (f"song/{SONG_ID}", OTHER_PLAYER, "sonos_only"),
+        (f"song/{SONG_ID}", None, "sonos_only"),
+        (f"album/{ALBUM_ID}", SONOS_PLAYER, "not_playable"),
         (f"artist/{ARTIST_ID}", SONOS_PLAYER, "not_playable"),
         ("charts/song", SONOS_PLAYER, "not_playable"),
     ],
 )
 async def test_resolve_unplayable(
-    hass: HomeAssistant, identifier: str, target: str, translation_key: str
+    hass: HomeAssistant, identifier: str, target: str | None, translation_key: str
 ) -> None:
-    """Test items or speakers that cannot play Apple Music links are refused."""
+    """Test items or speakers that cannot play from the browser are refused."""
     with pytest.raises(media_source.Unresolvable) as err:
         await media_source.async_resolve_media(hass, f"{ROOT}/{identifier}", target)
 
     assert err.value.translation_key == translation_key
+
+
+async def test_resolve_no_account(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test a song cannot resolve without a Sonos favorite showing the account."""
+    soco.contentDirectory.Browse.return_value = {"Result": "<DIDL-Lite></DIDL-Lite>"}
+
+    with pytest.raises(media_source.Unresolvable) as err:
+        await media_source.async_resolve_media(
+            hass, f"{ROOT}/song/{SONG_ID}", SONOS_PLAYER
+        )
+
+    assert err.value.translation_key == "no_account"

@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from contextlib import suppress
 
 import probatio
 from homeassistant.components.media_player import (
-    ATTR_MEDIA_CONTENT_ID,
-    ATTR_MEDIA_CONTENT_TYPE,
     ATTR_MEDIA_ENQUEUE,
-    SERVICE_PLAY_MEDIA,
     MediaPlayerEnqueue,
-    MediaType,
 )
-from homeassistant.components.media_player import DOMAIN as MEDIA_PLAYER_DOMAIN
-from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -26,7 +20,8 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_entity_ids
 
-from .api import AppleMusicCatalog, AppleMusicError, CatalogItem, is_playable_url
+from . import sonos
+from .api import AppleMusicCatalog, AppleMusicError, CatalogItem, parse_url
 from .const import (
     ATTR_KIND,
     ATTR_LIMIT,
@@ -39,9 +34,6 @@ from .const import (
     Kind,
 )
 from .helpers import get_catalog, is_sonos_player
-
-if TYPE_CHECKING:
-    from homeassistant.core import Context
 
 _LIMIT = probatio.All(probatio.Coerce(int), probatio.Range(min=1, max=50))
 
@@ -109,50 +101,21 @@ async def _async_find(
     return found
 
 
-def _queue_steps(
-    urls: list[str], enqueue: MediaPlayerEnqueue
-) -> list[tuple[str, MediaPlayerEnqueue]]:
-    """Return the play_media calls that queue urls in order.
-
-    Sonos inserts "next" items right after the current one, so those go in reverse.
-    Nothing changes the current item before the last step, so positions stay valid.
-    """
-    first, rest = urls[0], urls[1:]
-    match enqueue:
-        case MediaPlayerEnqueue.REPLACE:
-            return [(first, enqueue), *((url, MediaPlayerEnqueue.ADD) for url in rest)]
-        case MediaPlayerEnqueue.ADD:
-            return [(url, enqueue) for url in urls]
-        case MediaPlayerEnqueue.NEXT:
-            return [(url, enqueue) for url in reversed(urls)]
-        case _:
-            return [
-                *((url, MediaPlayerEnqueue.NEXT) for url in reversed(rest)),
-                (first, MediaPlayerEnqueue.PLAY),
-            ]
-
-
-async def _async_play_urls(
-    hass: HomeAssistant,
-    entity_ids: list[str],
-    urls: list[str],
-    enqueue: MediaPlayerEnqueue,
-    context: Context,
-) -> None:
-    """Play Apple Music links on Sonos speakers."""
-    for url, step in _queue_steps(urls, enqueue):
-        await hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_PLAY_MEDIA,
-            {
-                ATTR_ENTITY_ID: entity_ids,
-                ATTR_MEDIA_CONTENT_ID: url,
-                ATTR_MEDIA_CONTENT_TYPE: MediaType.MUSIC,
-                ATTR_MEDIA_ENQUEUE: step,
-            },
-            blocking=True,
-            context=context,
+async def _async_from_url(catalog: AppleMusicCatalog, url: str) -> CatalogItem:
+    """Return the song, album or playlist an Apple Music link points to."""
+    if (parsed := parse_url(url)) is None:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_url",
+            translation_placeholders={"url": url},
         )
+    kind, item_id = parsed
+    if kind == Kind.SONG:
+        # The title, artist and album show in the Sonos queue, but are not required.
+        with suppress(AppleMusicError):
+            if song := await catalog.song(item_id):
+                return song
+    return CatalogItem(kind=kind, id=item_id, name="")
 
 
 @callback
@@ -172,15 +135,8 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 translation_domain=DOMAIN, translation_key="no_sonos_players"
             )
 
-        items: list[CatalogItem] = []
         if url := call.data.get(ATTR_URL):
-            if not is_playable_url(url):
-                raise ServiceValidationError(
-                    translation_domain=DOMAIN,
-                    translation_key="invalid_url",
-                    translation_placeholders={"url": url},
-                )
-            urls = [url]
+            items = [await _async_from_url(catalog, url)]
         else:
             items = await _async_find(
                 catalog,
@@ -188,11 +144,8 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 call.data[ATTR_KIND],
                 call.data[ATTR_LIMIT],
             )
-            urls = [item.url(catalog.storefront) for item in items]
 
-        await _async_play_urls(
-            hass, players, urls, call.data[ATTR_MEDIA_ENQUEUE], call.context
-        )
+        await sonos.async_play(hass, players, items, call.data[ATTR_MEDIA_ENQUEUE])
         if not call.return_response:
             return None
         return {"items": [item.as_dict(catalog.storefront) for item in items]}

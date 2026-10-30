@@ -102,3 +102,5 @@ known-first-party = ["custom_components"]
 
 [tool.codespell]
 ignore-words = ".codespell-ignore"
+# Dutch translations and recorded catalog responses are not English.
+skip = "*/translations/nl.json,*/fixtures/*.json"

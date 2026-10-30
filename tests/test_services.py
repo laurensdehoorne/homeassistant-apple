@@ -6,14 +6,15 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from pytest_homeassistant_custom_component.common import async_mock_service
 
-from custom_components.apple_music.const import DOMAIN, SEARCH_URL
+from custom_components.apple_music.const import DOMAIN, LOOKUP_URL, SEARCH_URL
 
-from .conftest import OTHER_PLAYER, SONOS_PLAYER
+from .conftest import CURRENT_TRACK, GROUPED_PLAYER, OTHER_PLAYER, SONOS_PLAYER
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant, ServiceCall
+    from unittest.mock import MagicMock
+
+    from homeassistant.core import HomeAssistant
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from pytest_homeassistant_custom_component.test_util.aiohttp import (
         AiohttpClientMocker,
@@ -21,23 +22,35 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.usefixtures("setup_integration", "players")
 
-YELLOW = "https://music.apple.com/be/song/-/1122782283"
-PARACHUTES = "https://music.apple.com/be/album/-/1122782080"
-SANTE = "https://music.apple.com/be/song/-/1589216089"
-DEFILER = "https://music.apple.com/be/song/-/1375875957"
-ALORS_ON_DANSE = "https://music.apple.com/be/song/-/1440520983"
+ACCOUNT = "SA_RINCON52231_X_#Svc52231-1a2b3c4d-Token"
+YELLOW = "x-sonos-http:song%3a1122782283.mp4?sid=204&flags=8232&sn=28"
+PARACHUTES = "x-rincon-cpcontainer:1004206calbum%3a1122782080?sid=204&flags=8300&sn=28"
+LE_CODE = (
+    "x-rincon-cpcontainer:1006206cplaylist%3apl.084e56c4114a4a199e582aa7db6e7e56"
+    "?sid=204&flags=8300&sn=28"
+)
+SANTE = "x-sonos-http:song%3a1589216089.mp4?sid=204&flags=8232&sn=28"
+DEFILER = "x-sonos-http:song%3a1375875957.mp4?sid=204&flags=8232&sn=28"
+ALORS_ON_DANSE = "x-sonos-http:song%3a1440520983.mp4?sid=204&flags=8232&sn=28"
 
 
-@pytest.fixture
-def play_media(hass: HomeAssistant) -> list[ServiceCall]:
-    """Record the play_media calls to the Sonos speakers."""
-    calls: list[ServiceCall] = async_mock_service(hass, "media_player", "play_media")
-    return calls
+def _queued(soco: MagicMock) -> list[tuple[str, int]]:
+    """Return the URIs added to the Sonos queue, with the position asked for."""
+    requests = (
+        dict(args[0]) for args, _ in soco.avTransport.AddURIToQueue.call_args_list
+    )
+    return [
+        (request["EnqueuedURI"], request["DesiredFirstTrackNumberEnqueued"])
+        for request in requests
+    ]
 
 
-def _played(calls: list[ServiceCall]) -> list[tuple[str, str]]:
-    """Return the links and enqueue modes that were sent to the speakers."""
-    return [(call.data["media_content_id"], call.data["enqueue"]) for call in calls]
+def _metadata(soco: MagicMock) -> str:
+    """Return the metadata of the first item added to the Sonos queue."""
+    metadata: str = dict(soco.avTransport.AddURIToQueue.call_args.args[0])[
+        "EnqueuedURIMetaData"
+    ]
+    return metadata
 
 
 async def _play(hass: HomeAssistant, **data: Any) -> Any:
@@ -51,13 +64,20 @@ async def _play(hass: HomeAssistant, **data: Any) -> Any:
     )
 
 
-async def test_play_song(hass: HomeAssistant, play_media: list[ServiceCall]) -> None:
-    """Test playing the best matching song replaces the Sonos queue."""
+async def test_play_song(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test the best matching song replaces the queue, with the household account."""
     response = await _play(hass, query="yellow coldplay")
 
-    assert _played(play_media) == [(YELLOW, "replace")]
-    assert play_media[0].data["entity_id"] == [SONOS_PLAYER]
-    assert play_media[0].data["media_content_type"] == "music"
+    soco.clear_queue.assert_called_once()
+    assert _queued(soco) == [(YELLOW, 0)]
+    metadata = _metadata(soco)
+    assert '<item id="10032020song%3a1122782283"' in metadata
+    assert "<dc:title>Yellow</dc:title>" in metadata
+    assert "<dc:creator>Coldplay</dc:creator>" in metadata
+    assert "<upnp:album>Parachutes</upnp:album>" in metadata
+    assert "<upnp:class>object.item.audioItem.musicTrack</upnp:class>" in metadata
+    assert ACCOUNT in metadata
+    soco.play_from_queue.assert_called_once_with(0)
     assert response == {
         "items": [
             {
@@ -66,7 +86,7 @@ async def test_play_song(hass: HomeAssistant, play_media: list[ServiceCall]) -> 
                 "name": "Yellow",
                 "artist": "Coldplay",
                 "album": "Parachutes",
-                "url": YELLOW,
+                "url": "https://music.apple.com/be/song/-/1122782283",
                 "media_content_id": "media-source://apple_music/song/1122782283",
                 "artwork_url": (
                     "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f5/93/8c/"
@@ -77,62 +97,113 @@ async def test_play_song(hass: HomeAssistant, play_media: list[ServiceCall]) -> 
     }
 
 
-async def test_play_album(hass: HomeAssistant, play_media: list[ServiceCall]) -> None:
-    """Test playing an album plays the album link."""
+async def test_play_album(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test an album is added to the queue as a whole."""
     await _play(hass, query="parachutes", media_type="album", enqueue="add")
 
-    assert _played(play_media) == [(PARACHUTES, "add")]
+    assert _queued(soco) == [(PARACHUTES, 0)]
+    assert "object.container.album.musicAlbum" in _metadata(soco)
+    soco.clear_queue.assert_not_called()
+    soco.play_from_queue.assert_not_called()
 
 
 @pytest.mark.parametrize(
     ("enqueue", "expected"),
     [
-        (
-            "replace",
-            [(SANTE, "replace"), (DEFILER, "add"), (ALORS_ON_DANSE, "add")],
-        ),
-        ("add", [(SANTE, "add"), (DEFILER, "add"), (ALORS_ON_DANSE, "add")]),
-        ("next", [(ALORS_ON_DANSE, "next"), (DEFILER, "next"), (SANTE, "next")]),
-        ("play", [(ALORS_ON_DANSE, "next"), (DEFILER, "next"), (SANTE, "play")]),
+        ("replace", [(SANTE, 0), (DEFILER, 0), (ALORS_ON_DANSE, 0)]),
+        ("add", [(SANTE, 0), (DEFILER, 0), (ALORS_ON_DANSE, 0)]),
+        ("next", [(SANTE, 4), (DEFILER, 5), (ALORS_ON_DANSE, 6)]),
+        ("play", [(SANTE, 4), (DEFILER, 5), (ALORS_ON_DANSE, 6)]),
     ],
 )
 async def test_play_artist(
     hass: HomeAssistant,
-    play_media: list[ServiceCall],
+    soco: MagicMock,
     mock_catalog: AiohttpClientMocker,
     enqueue: str,
-    expected: list[tuple[str, str]],
+    expected: list[tuple[str, int]],
 ) -> None:
     """Test the top songs of an artist end up in the queue in order."""
     response = await _play(
         hass, query="stromae", media_type="artist", enqueue=enqueue, limit=3
     )
 
-    assert _played(play_media) == expected
+    assert _queued(soco) == expected
+    assert soco.clear_queue.called is (enqueue == "replace")
+    # Replace plays the new queue, play the first song after the current track.
+    if (played_from := {"replace": 0, "play": CURRENT_TRACK}.get(enqueue)) is None:
+        soco.play_from_queue.assert_not_called()
+    else:
+        soco.play_from_queue.assert_called_once_with(played_from)
     assert response["items"][0]["name"] == "Santé"
     assert mock_catalog.mock_calls[-1][1].query["limit"] == "3"
 
 
-async def test_play_url(hass: HomeAssistant, play_media: list[ServiceCall]) -> None:
-    """Test playing an Apple Music link as is."""
-    url = "https://music.apple.com/be/playlist/le-code/pl.084e56c4114a4a199e582aa7db6e7e56"
+@pytest.mark.parametrize(
+    ("url", "expected", "title"),
+    [
+        (
+            "https://music.apple.com/be/playlist/le-code/pl.084e56c4114a4a199e582aa7db6e7e56",
+            LE_CODE,
+            "<dc:title></dc:title>",
+        ),
+        (
+            "https://music.apple.com/be/album/parachutes/1122782080",
+            PARACHUTES,
+            "<dc:title></dc:title>",
+        ),
+        (
+            "https://music.apple.com/be/album/parachutes/1122782080?i=1122782283",
+            YELLOW,
+            "<dc:title>Yellow</dc:title>",
+        ),
+        ("https://music.apple.com/be/song/yellow/1122782283", YELLOW, "Yellow"),
+    ],
+)
+async def test_play_url(
+    hass: HomeAssistant, soco: MagicMock, url: str, expected: str, title: str
+) -> None:
+    """Test Apple Music links play, songs with their title looked up."""
     response = await _play(hass, url=url, enqueue="next")
 
-    assert _played(play_media) == [(url, "next")]
-    assert response == {"items": []}
+    assert _queued(soco) == [(expected, CURRENT_TRACK + 1)]
+    assert title in _metadata(soco)
+    assert len(response["items"]) == 1
 
 
-async def test_play_only_on_sonos(
-    hass: HomeAssistant, play_media: list[ServiceCall]
+async def test_play_url_without_catalog(
+    hass: HomeAssistant, soco: MagicMock, mock_catalog: AiohttpClientMocker
 ) -> None:
-    """Test speakers that cannot play Apple Music links are left out."""
+    """Test a song link still plays when its title cannot be looked up."""
+    mock_catalog.clear_requests()
+    mock_catalog.get(LOOKUP_URL, status=503)
+
+    await _play(hass, url="https://music.apple.com/be/song/yellow/1122782283")
+
+    assert _queued(soco) == [(YELLOW, 0)]
+
+
+async def test_play_grouped(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test grouped speakers share the queue of their coordinator."""
+    await hass.services.async_call(
+        DOMAIN,
+        "play",
+        {"entity_id": [SONOS_PLAYER, GROUPED_PLAYER], "query": "yellow"},
+        blocking=True,
+    )
+
+    assert _queued(soco) == [(YELLOW, 0)]
+
+
+async def test_play_only_on_sonos(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test speakers that cannot play Apple Music are left out."""
     await hass.services.async_call(
         DOMAIN,
         "play",
         {"entity_id": [SONOS_PLAYER, OTHER_PLAYER], "query": "yellow"},
         blocking=True,
     )
-    assert play_media[0].data["entity_id"] == [SONOS_PLAYER]
+    assert _queued(soco) == [(YELLOW, 0)]
 
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
@@ -153,23 +224,52 @@ async def test_play_only_on_sonos(
     ],
 )
 async def test_play_invalid(
-    hass: HomeAssistant,
-    play_media: list[ServiceCall],
-    data: dict[str, str],
-    translation_key: str,
+    hass: HomeAssistant, soco: MagicMock, data: dict[str, str], translation_key: str
 ) -> None:
     """Test links and searches Sonos cannot play are refused."""
     with pytest.raises(ServiceValidationError) as err:
         await _play(hass, **data)
 
     assert err.value.translation_key == translation_key
-    assert not play_media
+    soco.avTransport.AddURIToQueue.assert_not_called()
+
+
+async def test_play_no_account(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test an error is raised when no Sonos favorite shows the Apple Music account."""
+    soco.contentDirectory.Browse.return_value = {"Result": "<DIDL-Lite></DIDL-Lite>"}
+
+    with pytest.raises(HomeAssistantError) as err:
+        await _play(hass, query="yellow")
+
+    assert err.value.translation_key == "no_account"
+    soco.clear_queue.assert_not_called()
+
+
+async def test_play_sonos_error(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test errors of the Sonos speaker are raised as readable errors."""
+    soco.avTransport.AddURIToQueue.side_effect = RuntimeError("UPnP Error 800")
+
+    with pytest.raises(HomeAssistantError) as err:
+        await _play(hass, query="yellow")
+
+    assert err.value.translation_key == "sonos_error"
+    assert err.value.translation_placeholders == {"error": "UPnP Error 800"}
+
+
+async def test_play_speaker_unavailable(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test an error is raised for a speaker the Sonos integration does not know."""
+    entry = hass.config_entries.async_entries("sonos")[0]
+    entry.runtime_data.unique_id_speaker_mappings.clear()
+
+    with pytest.raises(HomeAssistantError) as err:
+        await _play(hass, query="yellow")
+
+    assert err.value.translation_key == "speaker_unavailable"
+    soco.avTransport.AddURIToQueue.assert_not_called()
 
 
 async def test_play_no_results(
-    hass: HomeAssistant,
-    play_media: list[ServiceCall],
-    mock_catalog: AiohttpClientMocker,
+    hass: HomeAssistant, soco: MagicMock, mock_catalog: AiohttpClientMocker
 ) -> None:
     """Test an error is raised when nothing matches the query."""
     mock_catalog.clear_requests()
@@ -179,7 +279,7 @@ async def test_play_no_results(
         await _play(hass, query="nothing at all")
 
     assert err.value.translation_key == "no_results"
-    assert not play_media
+    soco.avTransport.AddURIToQueue.assert_not_called()
 
 
 async def test_play_request_failed(
@@ -207,7 +307,7 @@ async def test_search(hass: HomeAssistant) -> None:
 
     assert response is not None
     assert [(item["name"], item["url"]) for item in response["items"]] == [
-        ("Yellow", YELLOW),
+        ("Yellow", "https://music.apple.com/be/song/-/1122782283"),
         ("Yellow (Live)", "https://music.apple.com/be/song/-/693573510"),
     ]
 

@@ -38,13 +38,22 @@
       "message": "Niets gevonden op Apple Music voor \"{query}\"."
     },
     "not_playable": {
-      "message": "{identifier} kan niet afgespeeld worden."
+      "message": "{identifier} kan niet vanuit de mediabrowser afgespeeld worden. Speel albums en playlists af met de Apple Music-actie Afspelen."
     },
     "unknown_item": {
       "message": "{identifier} kan niet geopend worden."
     },
     "request_failed": {
       "message": "Apple Music is niet bereikbaar: {error}"
+    },
+    "no_account": {
+      "message": "Sonos heeft geen Apple Music-favoriet om je Apple Music-account mee te vinden. Voeg in de Sonos-app een Apple Music-playlist toe aan je Sonos-favorieten."
+    },
+    "speaker_unavailable": {
+      "message": "De Sonos-speaker {entity_id} is niet beschikbaar."
+    },
+    "sonos_error": {
+      "message": "De Sonos-speaker kon het niet afspelen: {error}"
     }
   },
   "selector": {
@@ -79,7 +88,7 @@
         },
         "url": {
           "name": "Link",
-          "description": "Een Apple Music-link naar een nummer, album of playlist, in plaats van zoeken."
+          "description": "Een Apple Music-link naar een nummer, album of playlist, in plaats van zoeken. Je eigen playlists werken als je ze deelt: Deel → Kopieer link."
         },
         "enqueue": {
           "name": "Wachtrij",

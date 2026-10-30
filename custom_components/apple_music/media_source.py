@@ -1,4 +1,8 @@
-"""Browse the Apple Music charts and catalog from the Sonos media browser."""
+"""Browse the Apple Music charts and catalog from the Sonos media browser.
+
+Songs play from the browser. Albums open to their songs: Sonos needs metadata to
+queue a whole album, which play_media cannot pass, so they play with the play action.
+"""
 
 from __future__ import annotations
 
@@ -19,10 +23,12 @@ from homeassistant.components.media_source import (
     PlayMedia,
     Unresolvable,
 )
+from homeassistant.exceptions import HomeAssistantError
 
-from .api import AppleMusicCatalog, AppleMusicError, CatalogItem, share_url
-from .const import CHART_KINDS, DOMAIN, PLAYABLE_KINDS, SEARCHABLE_KINDS, Kind
+from .api import AppleMusicCatalog, AppleMusicError, CatalogItem
+from .const import CHART_KINDS, DOMAIN, SEARCHABLE_KINDS, Kind
 from .helpers import get_catalog, is_sonos_player
+from .sonos import async_song_uri
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -41,7 +47,6 @@ _MEDIA_CLASSES = {
 _CHART_TITLES = {
     Kind.SONG: "Top songs",
     Kind.ALBUM: "Top albums",
-    Kind.PLAYLIST: "Top playlists",
 }
 _SEARCH_KINDS: dict[str, Kind] = {
     MediaClass.TRACK: Kind.SONG,
@@ -58,15 +63,16 @@ async def async_get_media_source(hass: HomeAssistant) -> AppleMusicMediaSource:
 
 
 def _browse_item(item: CatalogItem) -> BrowseMediaSource:
-    """Return a song, album, artist or playlist to browse."""
+    """Return a song, album or artist to browse."""
+    is_song = item.kind == Kind.SONG
     return BrowseMediaSource(
         domain=DOMAIN,
         identifier=item.identifier,
         media_class=_MEDIA_CLASSES[item.kind],
-        media_content_type=AUDIO_CONTENT_TYPE if item.playable else MediaType.ARTIST,
+        media_content_type=AUDIO_CONTENT_TYPE if is_song else MediaType.MUSIC,
         title=f"{item.name} · {item.artist}" if item.artist else item.name,
-        can_play=item.playable,
-        can_expand=item.kind in (Kind.ALBUM, Kind.ARTIST),
+        can_play=is_song,
+        can_expand=not is_song,
         thumbnail=item.artwork_url,
     )
 
@@ -110,27 +116,30 @@ class AppleMusicMediaSource(MediaSource):
         return catalog
 
     async def async_resolve_media(self, item: MediaSourceItem) -> PlayMedia:
-        """Resolve an item to its Apple Music link, which Sonos plays natively."""
+        """Resolve a song to the URI the Sonos speaker plays it from."""
         kind, _, item_id = item.identifier.partition("/")
-        if kind not in PLAYABLE_KINDS or not item_id:
+        if kind != Kind.SONG or not item_id:
             raise Unresolvable(
                 translation_domain=DOMAIN,
                 translation_key="not_playable",
                 translation_placeholders={"identifier": item.identifier},
             )
-        if item.target_media_player and not is_sonos_player(
-            self.hass, item.target_media_player
-        ):
+        target = item.target_media_player
+        if not target or not is_sonos_player(self.hass, target):
             raise Unresolvable(
                 translation_domain=DOMAIN,
                 translation_key="sonos_only",
-                translation_placeholders={"entity_id": item.target_media_player},
+                translation_placeholders={"entity_id": target or "-"},
             )
-        if (catalog := get_catalog(self.hass)) is None:
-            raise Unresolvable(translation_domain=DOMAIN, translation_key="not_loaded")
-        return PlayMedia(
-            share_url(catalog.storefront, Kind(kind), item_id), AUDIO_CONTENT_TYPE
-        )
+        try:
+            uri = await async_song_uri(self.hass, target, item_id)
+        except HomeAssistantError as err:
+            raise Unresolvable(
+                translation_domain=err.translation_domain,
+                translation_key=err.translation_key,
+                translation_placeholders=err.translation_placeholders,
+            ) from err
+        return PlayMedia(uri, AUDIO_CONTENT_TYPE)
 
     async def async_browse_media(self, item: MediaSourceItem) -> BrowseMediaSource:
         """Browse the charts, albums and artists."""
