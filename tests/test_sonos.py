@@ -139,6 +139,24 @@ def test_find_playlist_artwork() -> None:
     ]
 
 
+def test_find_library_playlist() -> None:
+    """Test a playlist of the user's own library is found too."""
+    favorites = (
+        '<DIDL-Lite><item id="FV:2/107"><dc:title>Dinner with Friends</dc:title>'
+        "<res>x-rincon-cpcontainer:1006206clibraryplaylist%3Ap.0EMR6fVXaXKR?sid=204"
+        "&amp;flags=8300&amp;sn=28</res></item></DIDL-Lite>"
+    )
+
+    (playlist,) = find_playlists(favorites)
+
+    assert playlist == CatalogItem(
+        Kind.PLAYLIST, "p.0EMR6fVXaXKR", "Dinner with Friends"
+    )
+    assert (
+        playlist.url("be") == "https://music.apple.com/library/playlist/p.0EMR6fVXaXKR"
+    )
+
+
 @pytest.mark.parametrize(
     ("members", "speakers", "joined"),
     [

@@ -29,6 +29,11 @@ LE_CODE = (
     "x-rincon-cpcontainer:1006206cplaylist%3apl.084e56c4114a4a199e582aa7db6e7e56"
     "?sid=204&flags=8300&sn=28"
 )
+# A playlist in the library of the account, not in the catalog.
+DINNER = (
+    "x-rincon-cpcontainer:1006206clibraryplaylist%3ap.0EMR6fVXaXKR"
+    "?sid=204&flags=8300&sn=28"
+)
 SANTE = "x-sonos-http:song%3a1589216089.mp4?sid=204&flags=8232&sn=28"
 DEFILER = "x-sonos-http:song%3a1375875957.mp4?sid=204&flags=8232&sn=28"
 ALORS_ON_DANSE = "x-sonos-http:song%3a1440520983.mp4?sid=204&flags=8232&sn=28"
@@ -146,6 +151,11 @@ async def test_play_artist(
             "https://music.apple.com/be/playlist/le-code/pl.084e56c4114a4a199e582aa7db6e7e56",
             LE_CODE,
             "<dc:title></dc:title>",
+        ),
+        (
+            "https://music.apple.com/library/playlist/p.0EMR6fVXaXKR",
+            DINNER,
+            '<item id="1006206clibraryplaylist%3ap.0EMR6fVXaXKR"',
         ),
         (
             "https://music.apple.com/be/album/parachutes/1122782080",

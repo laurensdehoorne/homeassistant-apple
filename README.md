@@ -96,7 +96,8 @@ move every speaker in the group by as much. The group button next to the speaker
 list groups speakers: tick the speakers to play together, or tap a preset group.
 The presets are the `groups` of the card and your media player groups in Home
 Assistant (**Settings → Devices & services → Helpers → Group → Media player
-group**) whose speakers the card all shows.
+group**) whose speakers the card all shows. A Sonos group of the same speakers as
+a preset goes by its name.
 
 **The microphone** opens Assist and listens right away, so you can say "speel Oasis
 in de keuken". Browsers only let Assist use the microphone over HTTPS, in the

@@ -79,6 +79,7 @@ const matches = (name, query) =>
     .split(/\s+/)
     .filter(Boolean)
     .every((word) => fold(name).includes(word));
+const sameSpeakers = (a, b) => a.length === b.length && a.every((id) => b.includes(id));
 
 // Apple serves the artwork in any size, the catalog hands out 600x600.
 const artwork = (url, size) => (url ? url.replace("600x600", `${size}x${size}`) : "");
@@ -262,9 +263,11 @@ class AppleMusicCard extends HTMLElement {
   }
 
   // Grouped speakers play one queue, so a Sonos group is one choice. It plays on
-  // its coordinator, the first member, when the card lists it.
+  // its coordinator, the first member, when the card lists it. A group made of
+  // the speakers of a preset group carries its name.
   _targets() {
     const speakers = this._speakers();
+    const presets = this._presets();
     const grouped = new Set();
     const targets = [];
     for (const id of speakers) {
@@ -273,10 +276,12 @@ class AppleMusicCard extends HTMLElement {
       }
       const members = this._hass.states[id].attributes.group_members ?? [id];
       members.forEach((member) => grouped.add(member));
+      const present = members.filter((member) => this._hass.states[member]);
+      const preset = presets.find((group) => sameSpeakers(group.members, present));
       targets.push({
         id: speakers.includes(members[0]) ? members[0] : id,
-        members: members.filter((member) => this._hass.states[member]),
-        name: members.map((member) => this._name(member)).join(" + "),
+        members: present,
+        name: preset?.name ?? members.map((member) => this._name(member)).join(" + "),
       });
     }
     return targets;
@@ -345,7 +350,10 @@ class AppleMusicCard extends HTMLElement {
       ? `<img class="art" src="${esc(a.entity_picture)}" alt="">`
       : `<div class="art"><ha-icon icon="mdi:music"></ha-icon></div>`;
     const options = this._targets()
-      .map((target) => `<option value="${esc(target.id)}" ${target.id === this._speaker ? "selected" : ""}>${esc(target.name)}</option>`)
+      .map((target) => {
+        const speakers = target.members.map((id) => this._name(id)).join(", ");
+        return `<option value="${esc(target.id)}" title="${esc(speakers)}" ${target.id === this._speaker ? "selected" : ""}>${esc(target.name)}</option>`;
+      })
       .join("");
     const grouping = !this.shadowRoot.querySelector(".groups").hidden;
     player.innerHTML = `
@@ -451,7 +459,7 @@ class AppleMusicCard extends HTMLElement {
     this._presetList = this._presets();
     const presets = this._presetList
       .map((preset, index) => {
-        const active = preset.members.length === members.length && preset.members.every((id) => members.includes(id));
+        const active = sameSpeakers(preset.members, members);
         const names = preset.members.map((id) => this._name(id)).join(", ");
         return `<button class="chip ${active ? "primary" : ""}" data-preset="${index}" title="${esc(names)}">
           <ha-icon icon="mdi:speaker-multiple" style="--mdc-icon-size: 18px"></ha-icon>${esc(preset.name)}</button>`;

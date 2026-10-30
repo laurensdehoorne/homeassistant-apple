@@ -24,7 +24,7 @@ from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
-from .api import ARTWORK_SIZE, CatalogItem
+from .api import ARTWORK_SIZE, CatalogItem, is_library_playlist
 from .const import DOMAIN, SONOS_DOMAIN, Kind
 
 if TYPE_CHECKING:
@@ -41,8 +41,10 @@ _TITLE = re.compile(r"<dc:title>([^<]*)</dc:title>")
 _ART = re.compile(r"<upnp:albumArtURI>([^<]*)</upnp:albumArtURI>")
 _SERIAL = re.compile(rf"[?&]sid={APPLE_MUSIC_SID}&.*\bsn=(\d+)")
 _TOKEN = re.compile(rf"#Svc{APPLE_MUSIC_SERVICE_TYPE}-([^-<]+)-Token")
+# Playlists of the catalog have ids like pl.77f96ce5, those of a library p.0EMR6fVX.
 _PLAYLIST = re.compile(
-    rf"^x-rincon-cpcontainer:1006206cplaylist%3a(pl\.[-.\w]+)\?sid={APPLE_MUSIC_SID}&",
+    rf"^x-rincon-cpcontainer:1006206c(?:library)?playlist%3a(pl?\.[-.\w]+)"
+    rf"\?sid={APPLE_MUSIC_SID}&",
     re.IGNORECASE,
 )
 # The last part of an artwork link names its size, like 400x400cc.jpeg.
@@ -137,9 +139,16 @@ def find_playlists(favorites: str) -> list[CatalogItem]:
     return playlists
 
 
+def _key(kind: Kind, item_id: str) -> str:
+    """Return how Sonos names an Apple Music item, a playlist of a library apart."""
+    if kind == Kind.PLAYLIST and is_library_playlist(item_id):
+        return f"libraryplaylist%3a{item_id}"
+    return f"{kind}%3a{item_id}"
+
+
 def item_uri(account: AppleMusicAccount, kind: Kind, item_id: str) -> str:
     """Return the URI Sonos plays an Apple Music song, album or playlist from."""
-    return _ITEMS[kind][0].format(key=f"{kind}%3a{item_id}", serial=account.serial)
+    return _ITEMS[kind][0].format(key=_key(kind, item_id), serial=account.serial)
 
 
 def _metadata(account: AppleMusicAccount, item: CatalogItem) -> str:
@@ -153,7 +162,7 @@ def _metadata(account: AppleMusicAccount, item: CatalogItem) -> str:
     if item.artwork_url:
         extra += f"<upnp:albumArtURI>{html.escape(item.artwork_url)}</upnp:albumArtURI>"
     return _DIDL.format(
-        item_id=f"{prefix}{item.kind}%3a{item.id}",
+        item_id=f"{prefix}{_key(item.kind, item.id)}",
         title=html.escape(item.name),
         extra=extra,
         item_class=item_class,

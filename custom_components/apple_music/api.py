@@ -57,6 +57,10 @@ _LINKS = (
             r"https://music\.apple\.com/\w+/playlist/(?:[^/?]+/)?(pl\.[-a-zA-Z0-9]+)"
         ),
     ),
+    (
+        Kind.PLAYLIST,
+        re.compile(r"https://music\.apple\.com/library/playlist/(p\.[-a-zA-Z0-9]+)"),
+    ),
 )
 
 
@@ -72,8 +76,16 @@ def parse_url(url: str) -> tuple[Kind, str] | None:
     return None
 
 
+def is_library_playlist(item_id: str) -> bool:
+    """Return whether a playlist id is of a playlist in someone's library."""
+    return item_id.startswith("p.")
+
+
 def share_url(storefront: str, kind: Kind, item_id: str) -> str:
     """Return the music.apple.com link of a catalog item."""
+    if kind == Kind.PLAYLIST and is_library_playlist(item_id):
+        # Only its owner opens it, but the link plays like any other.
+        return f"https://music.apple.com/library/playlist/{item_id}"
     # Apple redirects any slug to the canonical one.
     return f"https://music.apple.com/{storefront}/{kind}/-/{item_id}"
 
