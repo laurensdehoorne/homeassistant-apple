@@ -16,6 +16,8 @@ const STRINGS = {
     artists: "Artists",
     play: "Play",
     play_top_songs: "Play top songs",
+    show_list: "Show as a list",
+    show_tiles: "Show as tiles",
     play_now: "Play now",
     play_next: "Play next",
     add: "Add to queue",
@@ -45,6 +47,8 @@ const STRINGS = {
     artists: "Artiesten",
     play: "Afspelen",
     play_top_songs: "Speel top nummers",
+    show_list: "Toon als lijst",
+    show_tiles: "Toon als tegels",
     play_now: "Nu afspelen",
     play_next: "Hierna afspelen",
     add: "Achteraan toevoegen",
@@ -62,6 +66,7 @@ const STRINGS = {
 };
 
 const SPEAKER_KEY = "apple-music-card:speaker";
+const LAYOUT_KEY = "apple-music-card:playlist-layout";
 // The catalog changes slowly, the charts once a day.
 const CACHE_MS = 10 * 60 * 1000;
 const SEARCH_DELAY_MS = 350;
@@ -120,6 +125,8 @@ const STYLE = `
   .row { display: flex; align-items: center; gap: 12px; padding: 4px 8px 4px 16px; }
   .row:hover { background: var(--secondary-background-color); }
   .row .thumb { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex: none; background: var(--secondary-background-color); }
+  .placeholder { display: flex; align-items: center; justify-content: center; color: var(--secondary-text-color); }
+  .tabs .layout { width: 32px; height: 32px; margin-left: auto; }
   .row .meta { flex: 1; min-width: 0; text-align: start; }
   .row .meta span { display: block; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 16px 8px 72px; }
@@ -129,10 +136,10 @@ const STYLE = `
   .chip:hover { border-color: var(--primary-color); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px 12px; padding: 4px 16px 8px; }
   .tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; text-align: start; }
-  .tile img { width: 100%; aspect-ratio: 1; border-radius: 6px; object-fit: cover; background: var(--secondary-background-color); }
+  .tile .art { width: 100%; aspect-ratio: 1; border-radius: 6px; object-fit: cover; background: var(--secondary-background-color); }
   .artists { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 16px 8px; }
   .detail { display: flex; gap: 16px; align-items: center; padding: 4px 16px 8px; }
-  .detail img { width: 112px; height: 112px; border-radius: 8px; object-fit: cover; flex: none; background: var(--secondary-background-color); }
+  .detail .cover { width: 112px; height: 112px; border-radius: 8px; object-fit: cover; flex: none; background: var(--secondary-background-color); }
   .detail .meta { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   .detail .name { font-size: 1.25em; font-weight: 600; }
   .detail .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -140,7 +147,7 @@ const STYLE = `
   .back:hover { color: var(--primary-text-color); }
   @media (max-width: 420px) {
     .volume { display: none; }
-    .detail img { width: 80px; height: 80px; }
+    .detail .cover { width: 80px; height: 80px; }
   }
 `;
 
@@ -151,6 +158,12 @@ class AppleMusicCard extends HTMLElement {
     this._stack = [];
     this._query = "";
     this._tab = "playlist";
+    this._layout = "grid";
+    try {
+      this._layout = localStorage.getItem(LAYOUT_KEY) ?? "grid";
+    } catch (_err) {
+      // Private windows can refuse storage, tiles will do.
+    }
     this._items = new Map();
     this._cache = new Map();
     this._levels = new Map();
@@ -439,15 +452,21 @@ class AppleMusicCard extends HTMLElement {
   // Grouping
 
   // Preset groups are the card's own, then the media player groups of Home
-  // Assistant, as long as the card lists all their speakers.
+  // Assistant, as long as the card lists all their speakers. Speakers grouped
+  // the same way show once, under the first name.
   _presets() {
     const speakers = this._speakers();
     const helpers = Object.values(this._hass.entities ?? {})
       .filter((e) => e.platform === "group" && e.entity_id.startsWith("media_player.") && !e.hidden)
       .map((e) => ({ name: this._name(e.entity_id), members: this._hass.states[e.entity_id]?.attributes.entity_id ?? [] }));
-    return [...(this._config.groups ?? []).map((group) => ({ name: group.name, members: group.entities })), ...helpers].filter(
-      (preset) => preset.members.length > 1 && preset.members.every((id) => speakers.includes(id)),
-    );
+    const presets = [];
+    for (const preset of [...(this._config.groups ?? []).map((group) => ({ name: group.name, members: group.entities })), ...helpers]) {
+      const shown = preset.members.length > 1 && preset.members.every((id) => speakers.includes(id));
+      if (shown && !presets.some((other) => sameSpeakers(other.members, preset.members))) {
+        presets.push(preset);
+      }
+    }
+    return presets;
   }
 
   _updateGroups() {
@@ -627,6 +646,14 @@ class AppleMusicCard extends HTMLElement {
     } else if (action === "tab") {
       this._tab = tab;
       this._render();
+    } else if (action === "layout") {
+      this._layout = this._layout === "list" ? "grid" : "list";
+      try {
+        localStorage.setItem(LAYOUT_KEY, this._layout);
+      } catch (_err) {
+        // Remembering the layout is a convenience.
+      }
+      this._render();
     }
   }
 
@@ -661,11 +688,17 @@ class AppleMusicCard extends HTMLElement {
       ]
         .map(([tab, label]) => `<button class="tab" data-action="tab" data-tab="${tab}" aria-pressed="${tab === this._tab}">${esc(label)}</button>`)
         .join("");
-      return `<div class="tabs">${tabs}</div>`;
+      const list = this._layout === "list";
+      const layout =
+        this._tab === "playlist"
+          ? `<button class="icon layout" data-action="layout" title="${esc(list ? t.show_tiles : t.show_list)}">
+              <ha-icon icon="${list ? "mdi:view-grid-outline" : "mdi:view-list"}"></ha-icon></button>`
+          : "";
+      return `<div class="tabs">${tabs}${layout}</div>`;
     }
     const back = `<button class="back" data-action="back"><ha-icon icon="mdi:chevron-left"></ha-icon>${esc(t.back)}</button>`;
     const isArtist = item.media_type === "artist";
-    const image = isArtist ? "" : `<img src="${esc(artwork(item.artwork_url, 300))}" alt="">`;
+    const image = isArtist ? "" : this._art(item.artwork_url, 300, "cover");
     return `
       ${back}
       <div class="detail">
@@ -709,7 +742,7 @@ class AppleMusicCard extends HTMLElement {
         ),
       ]);
       const body =
-        this._section(t.playlists, this._albums(playlists), playlists) +
+        this._section(t.playlists, this._playlistItems(playlists), playlists) +
         this._section(t.songs, this._songs(songs), songs) +
         this._section(t.albums, this._albums(albums), albums) +
         this._section(t.artists, this._artists(artists), artists);
@@ -720,7 +753,7 @@ class AppleMusicCard extends HTMLElement {
         return `<div class="status">${esc(t.no_speakers)}</div>`;
       }
       const items = await this._playlists();
-      return items.length ? this._albums(items) : `<div class="status">${esc(t.no_playlists)}</div>`;
+      return items.length ? this._playlistItems(items) : `<div class="status">${esc(t.no_playlists)}</div>`;
     }
     const { items } = await this._fetch({ type: "apple_music/charts", media_type: this._tab });
     return this._tab === "song" ? this._songs(items) : this._albums(items);
@@ -765,19 +798,57 @@ class AppleMusicCard extends HTMLElement {
       .join("");
   }
 
+  // Playlists can come without artwork.
+  _art(url, size, className) {
+    return url
+      ? `<img class="${className}" src="${esc(artwork(url, size))}" loading="lazy" alt="">`
+      : `<div class="${className} placeholder"><ha-icon icon="mdi:playlist-music"></ha-icon></div>`;
+  }
+
   _albums(albums) {
     this._keep(albums);
     const tiles = albums
       .map(
         (album) => `
           <button class="tile" data-action="open" data-key="${esc(album.media_type)}/${esc(album.id)}">
-            <img src="${esc(artwork(album.artwork_url, 300))}" loading="lazy" alt="">
+            ${this._art(album.artwork_url, 300, "art")}
             <span class="title">${esc(album.name)}</span>
             <span class="sub">${esc(album.artist ?? "")}</span>
           </button>`,
       )
       .join("");
     return `<div class="grid">${tiles}</div>`;
+  }
+
+  _playlistItems(playlists) {
+    return this._layout === "list" ? this._playlistList(playlists) : this._albums(playlists);
+  }
+
+  // A playlist row opens the playlist, like its tile, and plays it from the buttons.
+  _playlistList(playlists) {
+    this._keep(playlists);
+    const t = this._t;
+    return playlists
+      .map(
+        (playlist) => `
+          <div class="row">
+            ${this._art(playlist.artwork_url, 120, "thumb")}
+            <button class="meta" data-action="open" data-key="${esc(playlist.media_type)}/${esc(playlist.id)}">
+              <span class="title">${esc(playlist.name)}</span>
+            </button>
+            <button class="icon accent" data-action="play" data-url="${esc(playlist.url)}" data-enqueue="replace" title="${esc(t.play)}">
+              <ha-icon icon="mdi:play"></ha-icon>
+            </button>
+            <button class="icon" data-action="more" title="${esc(t.more)}" aria-expanded="false">
+              <ha-icon icon="mdi:dots-vertical"></ha-icon>
+            </button>
+          </div>
+          <div class="actions" hidden>
+            ${this._chip(playlist.url, "next", t.play_next)}
+            ${this._chip(playlist.url, "add", t.add)}
+          </div>`,
+      )
+      .join("");
   }
 
   _artists(artists) {

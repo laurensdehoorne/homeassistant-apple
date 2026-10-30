@@ -88,7 +88,9 @@ buttons to play them. Searching finds playlists too. The card remembers the spea
 per browser.
 
 **Playlists** are the Apple Music playlists in your Sonos favorites. To add one,
-give it a heart in the Sonos app: the card reads the favorites every time.
+give it a heart in the Sonos app: the card reads the favorites every time. The
+button next to the tabs shows them as tiles or as a list, which the card remembers
+per browser.
 
 **Sonos groups** are one choice in the speaker list, like "Era 300 + Era 100", since
 grouped speakers play one queue. The volume slider and the − and + buttons then
@@ -96,8 +98,9 @@ move every speaker in the group by as much. The group button next to the speaker
 list groups speakers: tick the speakers to play together, or tap a preset group.
 The presets are the `groups` of the card and your media player groups in Home
 Assistant (**Settings → Devices & services → Helpers → Group → Media player
-group**) whose speakers the card all shows. A Sonos group of the same speakers as
-a preset goes by its name.
+group**) whose speakers the card all shows. Presets of the same speakers show once,
+a group of the card before a group of Home Assistant, and a Sonos group of those
+speakers goes by that name.
 
 **The microphone** opens Assist and listens right away, so you can say "speel Oasis
 in de keuken". Browsers only let Assist use the microphone over HTTPS, in the
