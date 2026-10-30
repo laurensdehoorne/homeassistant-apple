@@ -8,10 +8,13 @@ from typing import TYPE_CHECKING, Any
 import probatio
 from homeassistant.components import websocket_api
 from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 
+from . import sonos
 from .api import AppleMusicCatalog, AppleMusicError, CatalogItem
 from .const import CHART_KINDS, Kind
-from .helpers import get_catalog
+from .helpers import get_catalog, is_sonos_player
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -26,7 +29,7 @@ type _Fetch = Callable[[AppleMusicCatalog], Awaitable[dict[str, list[CatalogItem
 @callback
 def async_register_commands(hass: HomeAssistant) -> None:
     """Register the WebSocket commands of the Apple Music card."""
-    for command in (ws_charts, ws_album, ws_artist, ws_search):
+    for command in (ws_charts, ws_album, ws_artist, ws_search, ws_playlists):
         websocket_api.async_register_command(hass, command)
 
 
@@ -44,6 +47,9 @@ async def _async_send(
         groups = await fetch(catalog)
     except AppleMusicError as err:
         connection.send_error(msg["id"], "request_failed", str(err))
+        return
+    except HomeAssistantError as err:
+        connection.send_error(msg["id"], "sonos_error", str(err))
         return
     connection.send_result(
         msg["id"],
@@ -134,5 +140,28 @@ async def ws_search(
             )
         )
         return {"songs": songs, "albums": albums, "artists": artists}
+
+    await _async_send(hass, connection, msg, fetch)
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "apple_music/playlists",
+        probatio.Required("entity_id"): cv.entity_id,
+    }
+)
+@websocket_api.async_response
+async def ws_playlists(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Send the Apple Music playlists in the Sonos favorites of a speaker."""
+    if not is_sonos_player(hass, msg["entity_id"]):
+        connection.send_error(
+            msg["id"], "not_sonos", f"{msg['entity_id']} is not a Sonos speaker"
+        )
+        return
+
+    async def fetch(_catalog: AppleMusicCatalog) -> dict[str, list[CatalogItem]]:
+        return {"items": await sonos.async_playlists(hass, msg["entity_id"])}
 
     await _async_send(hass, connection, msg, fetch)

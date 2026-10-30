@@ -12,6 +12,7 @@ from .api import AppleMusicCatalog
 from .card import async_register_card
 from .const import CONF_STOREFRONT, DOMAIN
 from .services import async_setup_services
+from .voice import async_setup_voice
 from .websocket import async_register_commands
 
 if TYPE_CHECKING:
@@ -38,6 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AppleMusicConfigEntry) -
     entry.runtime_data = AppleMusicCatalog(
         async_get_clientsession(hass), entry.data[CONF_STOREFRONT]
     )
+    entry.async_on_unload(async_setup_voice(hass, entry.runtime_data))
     return True
 
 

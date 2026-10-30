@@ -8,9 +8,11 @@ import pytest
 
 from custom_components.apple_music.const import SEARCH_URL
 
-from .conftest import ALBUM_ID, ARTIST_ID
+from .conftest import ALBUM_ID, ARTIST_ID, OTHER_PLAYER, SONOS_PLAYER
 
 if TYPE_CHECKING:
+    from unittest.mock import MagicMock
+
     from homeassistant.core import HomeAssistant
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from pytest_homeassistant_custom_component.test_util.aiohttp import (
@@ -115,3 +117,44 @@ async def test_not_loaded(
     response = await _send(hass_ws_client, type="apple_music/album", album_id="1")
 
     assert response["error"]["code"] == "not_loaded"
+
+
+@pytest.mark.usefixtures("players")
+async def test_playlists(hass_ws_client: WebSocketGenerator) -> None:
+    """Test the card gets the Apple Music playlists in the Sonos favorites."""
+    response = await _send(
+        hass_ws_client, type="apple_music/playlists", entity_id=SONOS_PLAYER
+    )
+
+    assert _names(response["result"]["items"]) == [
+        "Old account playlist",
+        "Current account playlist",
+        "Older account playlist",
+    ]
+    assert response["result"]["items"][1]["url"] == (
+        "https://music.apple.com/be/playlist/-/pl.bbb"
+    )
+
+
+@pytest.mark.usefixtures("players")
+async def test_playlists_of_other_speaker(hass_ws_client: WebSocketGenerator) -> None:
+    """Test only Sonos speakers have playlists."""
+    response = await _send(
+        hass_ws_client, type="apple_music/playlists", entity_id=OTHER_PLAYER
+    )
+
+    assert response["error"]["code"] == "not_sonos"
+
+
+@pytest.mark.usefixtures("players")
+async def test_playlists_sonos_error(
+    hass_ws_client: WebSocketGenerator, soco: MagicMock
+) -> None:
+    """Test an error is sent when the Sonos speaker cannot be reached."""
+    soco.contentDirectory.Browse.side_effect = OSError("No route to host")
+
+    response = await _send(
+        hass_ws_client, type="apple_music/playlists", entity_id=SONOS_PLAYER
+    )
+
+    assert response["error"]["code"] == "sonos_error"

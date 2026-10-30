@@ -7,18 +7,21 @@ from typing import TYPE_CHECKING
 
 import pytest
 from homeassistant.components.media_player import MediaPlayerEnqueue
+from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.apple_music.api import CatalogItem
 from custom_components.apple_music.const import Kind
 from custom_components.apple_music.sonos import (
     AppleMusicAccount,
+    async_join,
     async_play,
     find_account,
+    find_playlists,
     item_uri,
 )
 
 from . import load_text
-from .conftest import CURRENT_TRACK, SONOS_PLAYER
+from .conftest import CURRENT_TRACK, GROUPED_PLAYER, SONOS_PLAYER
 
 if TYPE_CHECKING:
     from unittest.mock import MagicMock
@@ -101,3 +104,55 @@ async def test_play_next_after_albums(hass: HomeAssistant, soco: MagicMock) -> N
         "EnqueuedURIMetaData"
     ]
     assert "<dc:creator>Stromae &amp; &lt;Co&gt;</dc:creator>" in metadata
+
+
+def test_find_playlists() -> None:
+    """Test the Apple Music playlists in the favorites are found, radio left out."""
+    playlists = find_playlists(load_text("sonos_favorites.xml"))
+
+    assert [(item.kind, item.id, item.name) for item in playlists] == [
+        (Kind.PLAYLIST, "pl.aaa", "Old account playlist"),
+        (Kind.PLAYLIST, "pl.bbb", "Current account playlist"),
+        (Kind.PLAYLIST, "pl.ccc", "Older account playlist"),
+    ]
+
+
+def test_find_playlist_artwork() -> None:
+    """Test a playlist gets its title unescaped and larger artwork."""
+    favorites = (
+        '<DIDL-Lite><item id="FV:2/80"><dc:title>Lounge (Bar &amp; Café)</dc:title>'
+        "<res>x-rincon-cpcontainer:1006206cplaylist%3Apl.c96a?sid=204&amp;flags=8300"
+        "&amp;sn=28</res><upnp:albumArtURI>https://is1-ssl.mzstatic.com/image/thumb/"
+        "abc/400x400bb.jpeg</upnp:albumArtURI></item></DIDL-Lite>"
+    )
+
+    assert find_playlists(favorites) == [
+        CatalogItem(
+            Kind.PLAYLIST,
+            "pl.c96a",
+            "Lounge (Bar & Café)",
+            artwork_url="https://is1-ssl.mzstatic.com/image/thumb/abc/600x600bb.jpeg",
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("members", "joined"),
+    [
+        ([SONOS_PLAYER], [GROUPED_PLAYER]),
+        ([SONOS_PLAYER, GROUPED_PLAYER], None),
+    ],
+)
+async def test_join(
+    hass: HomeAssistant, members: list[str], joined: list[str] | None
+) -> None:
+    """Test speakers are grouped only when they play apart."""
+    calls = async_mock_service(hass, "media_player", "join")
+    hass.states.async_set(SONOS_PLAYER, "idle", {"group_members": members})
+
+    await async_join(hass, [SONOS_PLAYER, GROUPED_PLAYER])
+
+    if joined is None:
+        assert not calls
+    else:
+        assert calls[0].data == {"entity_id": SONOS_PLAYER, "group_members": joined}

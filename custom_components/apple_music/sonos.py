@@ -14,16 +14,21 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.media_player import MediaPlayerEnqueue
+from homeassistant.components.media_player import (
+    ATTR_GROUP_MEMBERS,
+    SERVICE_JOIN,
+    MediaPlayerEnqueue,
+)
+from homeassistant.components.media_player import DOMAIN as MEDIA_PLAYER_DOMAIN
+from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
+from .api import ARTWORK_SIZE, CatalogItem
 from .const import DOMAIN, SONOS_DOMAIN, Kind
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
-
-    from .api import CatalogItem
 
 APPLE_MUSIC_SID = 204
 # Sonos identifies a music service by its sid * 256 + 7.
@@ -32,8 +37,16 @@ APPLE_MUSIC_SERVICE_TYPE = APPLE_MUSIC_SID * 256 + 7
 _FAVORITE = re.compile(r"<item\b.*?</item>", re.DOTALL)
 _RES = re.compile(r"<res\b[^>]*>([^<]*)</res>")
 _RES_MD = re.compile(r"<r:resMD>([^<]*)</r:resMD>")
+_TITLE = re.compile(r"<dc:title>([^<]*)</dc:title>")
+_ART = re.compile(r"<upnp:albumArtURI>([^<]*)</upnp:albumArtURI>")
 _SERIAL = re.compile(rf"[?&]sid={APPLE_MUSIC_SID}&.*\bsn=(\d+)")
 _TOKEN = re.compile(rf"#Svc{APPLE_MUSIC_SERVICE_TYPE}-([^-<]+)-Token")
+_PLAYLIST = re.compile(
+    rf"^x-rincon-cpcontainer:1006206cplaylist%3a(pl\.[-.\w]+)\?sid={APPLE_MUSIC_SID}&",
+    re.IGNORECASE,
+)
+# The last part of an artwork link names its size, like 400x400cc.jpeg.
+_ART_SIZE = re.compile(r"/\d+x\d+(?=[^/]*$)")
 
 # The URI, item id prefix and class Sonos uses for each kind of Apple Music item.
 _ITEMS = {
@@ -99,6 +112,31 @@ def find_account(favorites: str) -> AppleMusicAccount | None:
     return max(accounts, key=lambda account: int(account.serial), default=None)
 
 
+def find_playlists(favorites: str) -> list[CatalogItem]:
+    """Return the Apple Music playlists in the Sonos favorites, as DIDL-Lite."""
+    playlists = []
+    for item in _FAVORITE.findall(favorites):
+        if (res := _RES.search(item)) is None or (
+            playlist := _PLAYLIST.search(html.unescape(res.group(1)))
+        ) is None:
+            continue
+        title = _TITLE.search(item)
+        art = _ART.search(item)
+        playlists.append(
+            CatalogItem(
+                kind=Kind.PLAYLIST,
+                id=playlist.group(1),
+                name=html.unescape(title.group(1)) if title else "",
+                artwork_url=(
+                    _ART_SIZE.sub(f"/{ARTWORK_SIZE}", html.unescape(art.group(1)))
+                    if art
+                    else None
+                ),
+            )
+        )
+    return playlists
+
+
 def item_uri(account: AppleMusicAccount, kind: Kind, item_id: str) -> str:
     """Return the URI Sonos plays an Apple Music song, album or playlist from."""
     return _ITEMS[kind][0].format(key=f"{kind}%3a{item_id}", serial=account.serial)
@@ -123,8 +161,8 @@ def _metadata(account: AppleMusicAccount, item: CatalogItem) -> str:
     )
 
 
-def _account(soco: Any) -> AppleMusicAccount:
-    """Return the Apple Music account of the household of a Sonos speaker."""
+def _favorites(soco: Any) -> str:
+    """Return the Sonos favorites of the household of a Sonos speaker."""
     result = soco.contentDirectory.Browse(
         [
             ("ObjectID", "FV:2"),
@@ -135,7 +173,13 @@ def _account(soco: Any) -> AppleMusicAccount:
             ("SortCriteria", ""),
         ]
     )
-    if (account := find_account(result["Result"])) is None:
+    favorites: str = result["Result"]
+    return favorites
+
+
+def _account(soco: Any) -> AppleMusicAccount:
+    """Return the Apple Music account of the household of a Sonos speaker."""
+    if (account := find_account(_favorites(soco))) is None:
         raise HomeAssistantError(
             translation_domain=DOMAIN, translation_key="no_account"
         )
@@ -219,6 +263,27 @@ async def async_play(
             for soco in coordinators.values()
         )
     )
+
+
+async def async_playlists(hass: HomeAssistant, entity_id: str) -> list[CatalogItem]:
+    """Return the Apple Music playlists in the Sonos favorites of a speaker."""
+    soco = _coordinator(hass, entity_id)
+    favorites = await hass.async_add_executor_job(_call, _favorites, soco)
+    return find_playlists(favorites)
+
+
+async def async_join(hass: HomeAssistant, entity_ids: list[str]) -> None:
+    """Group Sonos speakers, so they play one queue together."""
+    first = entity_ids[0]
+    state = hass.states.get(first)
+    members = state.attributes.get(ATTR_GROUP_MEMBERS) if state else None
+    if others := [e for e in entity_ids if e not in (members or [first])]:
+        await hass.services.async_call(
+            MEDIA_PLAYER_DOMAIN,
+            SERVICE_JOIN,
+            {ATTR_ENTITY_ID: first, ATTR_GROUP_MEMBERS: others},
+            blocking=True,
+        )
 
 
 async def async_song_uri(hass: HomeAssistant, entity_id: str, song_id: str) -> str:

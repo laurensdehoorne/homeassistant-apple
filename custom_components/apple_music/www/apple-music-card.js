@@ -5,6 +5,8 @@ const STRINGS = {
     search: "Search songs, albums and artists",
     link: "Paste an Apple Music link",
     invalid_link: "That is not an Apple Music link.",
+    playlists: "Playlists",
+    no_playlists: "There are no Apple Music playlists in your Sonos favorites. Add them in the Sonos app.",
     top_songs: "Top songs",
     top_albums: "Top albums",
     songs: "Songs",
@@ -30,6 +32,8 @@ const STRINGS = {
     search: "Zoek nummers, albums en artiesten",
     link: "Plak een Apple Music-link",
     invalid_link: "Dat is geen Apple Music-link.",
+    playlists: "Afspeellijsten",
+    no_playlists: "Er staan geen Apple Music-afspeellijsten in je Sonos-favorieten. Voeg ze toe in de Sonos-app.",
     top_songs: "Top nummers",
     top_albums: "Top albums",
     songs: "Nummers",
@@ -121,7 +125,7 @@ class AppleMusicCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._stack = [];
     this._query = "";
-    this._tab = "song";
+    this._tab = "playlist";
     this._items = new Map();
     this._cache = new Map();
     this._renderId = 0;
@@ -214,9 +218,34 @@ class AppleMusicCard extends HTMLElement {
     return this._hass.states[entityId]?.attributes.friendly_name ?? entityId;
   }
 
-  _updateSpeakers() {
+  // Grouped speakers play one queue, so a Sonos group is one choice. It plays on
+  // its coordinator, the first member, when the card lists it.
+  _targets() {
     const speakers = this._speakers();
-    const key = speakers.map((id) => `${id}=${this._name(id)}`).join();
+    const grouped = new Set();
+    const targets = [];
+    for (const id of speakers) {
+      if (grouped.has(id)) {
+        continue;
+      }
+      const members = this._hass.states[id].attributes.group_members ?? [id];
+      members.forEach((member) => grouped.add(member));
+      targets.push({
+        id: speakers.includes(members[0]) ? members[0] : id,
+        members: members.filter((member) => this._hass.states[member]),
+        name: members.map((member) => this._name(member)).join(" + "),
+      });
+    }
+    return targets;
+  }
+
+  _target() {
+    return this._targets().find((target) => target.id === this._speaker);
+  }
+
+  _updateSpeakers() {
+    const targets = this._targets();
+    const key = targets.map((target) => `${target.id}=${target.name}`).join();
     if (key === this._speakerList) {
       return;
     }
@@ -227,9 +256,9 @@ class AppleMusicCard extends HTMLElement {
     } catch (_err) {
       // Private windows can refuse storage, the first speaker will do.
     }
-    if (!speakers.includes(this._speaker)) {
-      this._speaker = speakers.includes(saved) ? saved : speakers[0];
-    }
+    // A speaker that joined a group is chosen through its group.
+    const find = (id) => targets.find((target) => target.members.includes(id))?.id;
+    this._speaker = find(this._speaker) ?? find(saved) ?? targets[0]?.id;
     this._playerState = undefined;
   }
 
@@ -245,7 +274,6 @@ class AppleMusicCard extends HTMLElement {
     }
     this._playerState = state;
     const t = this._t;
-    const speakers = this._speakers();
     if (!state) {
       player.innerHTML = `<div class="sub">${esc(t.no_speakers)}</div>`;
       return;
@@ -255,8 +283,8 @@ class AppleMusicCard extends HTMLElement {
     const art = a.entity_picture
       ? `<img class="art" src="${esc(a.entity_picture)}" alt="">`
       : `<div class="art"><ha-icon icon="mdi:music"></ha-icon></div>`;
-    const options = speakers
-      .map((id) => `<option value="${esc(id)}" ${id === this._speaker ? "selected" : ""}>${esc(this._name(id))}</option>`)
+    const options = this._targets()
+      .map((target) => `<option value="${esc(target.id)}" ${target.id === this._speaker ? "selected" : ""}>${esc(target.name)}</option>`)
       .join("");
     player.innerHTML = `
       ${art}
@@ -270,7 +298,7 @@ class AppleMusicCard extends HTMLElement {
           <ha-icon icon="${playing ? "mdi:pause" : "mdi:play"}"></ha-icon>
         </button>
         <button class="icon" data-service="media_next_track"><ha-icon icon="mdi:skip-next"></ha-icon></button>
-        <input class="volume" type="range" min="0" max="100" value="${Math.round((a.volume_level ?? 0) * 100)}" aria-label="Volume">
+        <input class="volume" type="range" min="0" max="100" value="${Math.round(this._volume() * 100)}" aria-label="Volume">
       </div>`;
   }
 
@@ -292,13 +320,33 @@ class AppleMusicCard extends HTMLElement {
       this._playerState = undefined;
       this._updatePlayer();
     } else if (ev.target.classList.contains("volume")) {
+      this._setVolume(Number(ev.target.value) / 100);
+      ev.target.blur();
+    }
+  }
+
+  _members() {
+    return this._target()?.members ?? [this._speaker];
+  }
+
+  // A group's volume is the average of its speakers, like in the Sonos app.
+  _volume() {
+    const volumes = this._members().map((id) => this._hass.states[id]?.attributes.volume_level ?? 0);
+    return volumes.reduce((sum, volume) => sum + volume, 0) / volumes.length;
+  }
+
+  // Moving a group's volume moves every speaker by as much, which keeps their balance.
+  _setVolume(volume) {
+    const change = volume - this._volume();
+    for (const id of this._members()) {
+      const current = this._hass.states[id]?.attributes.volume_level ?? 0;
+      const level = this._members().length > 1 ? current + change : volume;
       this._hass.callService(
         "media_player",
         "volume_set",
-        { volume_level: Number(ev.target.value) / 100 },
-        { entity_id: this._speaker },
+        { volume_level: Math.round(Math.min(1, Math.max(0, level)) * 100) / 100 },
+        { entity_id: id },
       );
-      ev.target.blur();
     }
   }
 
@@ -422,6 +470,7 @@ class AppleMusicCard extends HTMLElement {
         return "";
       }
       const tabs = [
+        ["playlist", t.playlists],
         ["song", t.top_songs],
         ["album", t.top_albums],
       ]
@@ -458,6 +507,10 @@ class AppleMusicCard extends HTMLElement {
 
   async _body(item) {
     const t = this._t;
+    if (item?.media_type === "playlist") {
+      // Without an Apple Developer account the songs of a playlist are unknown.
+      return "";
+    }
     if (item?.media_type === "album") {
       const { songs } = await this._fetch({ type: "apple_music/album", album_id: item.id });
       return this._songs(songs, false);
@@ -473,6 +526,14 @@ class AppleMusicCard extends HTMLElement {
         this._section(t.albums, this._albums(albums), albums) +
         this._section(t.artists, this._artists(artists), artists);
       return body || `<div class="status">${esc(t.nothing)}</div>`;
+    }
+    if (this._tab === "playlist") {
+      if (!this._speaker) {
+        return `<div class="status">${esc(t.no_speakers)}</div>`;
+      }
+      // The Sonos favorites belong to the household, any of its speakers has them.
+      const { items } = await this._fetch({ type: "apple_music/playlists", entity_id: this._speaker });
+      return items.length ? this._albums(items) : `<div class="status">${esc(t.no_playlists)}</div>`;
     }
     const { items } = await this._fetch({ type: "apple_music/charts", media_type: this._tab });
     return this._tab === "song" ? this._songs(items) : this._albums(items);
@@ -522,7 +583,7 @@ class AppleMusicCard extends HTMLElement {
     const tiles = albums
       .map(
         (album) => `
-          <button class="tile" data-action="open" data-key="album/${esc(album.id)}">
+          <button class="tile" data-action="open" data-key="${esc(album.media_type)}/${esc(album.id)}">
             <img src="${esc(artwork(album.artwork_url, 300))}" loading="lazy" alt="">
             <span class="title">${esc(album.name)}</span>
             <span class="sub">${esc(album.artist ?? "")}</span>

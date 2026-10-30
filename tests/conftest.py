@@ -8,8 +8,13 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
+from homeassistant.components.homeassistant.exposed_entities import (
+    async_expose_entity,
+)
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.apple_music.const import (
@@ -51,6 +56,12 @@ def auto_enable_custom_integrations(
     enable_custom_integrations: None,  # pylint: disable=unused-argument
 ) -> None:
     """Enable custom integrations."""
+
+
+@pytest.fixture(autouse=True)
+async def setup_core(hass: HomeAssistant) -> None:
+    """Set up Home Assistant's core integration, which Assist needs."""
+    assert await async_setup_component(hass, "homeassistant", {})
 
 
 @pytest.fixture
@@ -135,7 +146,11 @@ def players(hass: HomeAssistant, soco: MagicMock) -> Generator[None]:
     registry = er.async_get(hass)
     for unique_id, object_id in (("RINCON_1", "keuken"), ("RINCON_2", "woonkamer")):
         registry.async_get_or_create(
-            "media_player", "sonos", unique_id, suggested_object_id=object_id
+            "media_player",
+            "sonos",
+            unique_id,
+            suggested_object_id=object_id,
+            original_name=object_id.capitalize(),
         )
     registry.async_get_or_create(
         "media_player", "cast", "cast-1", suggested_object_id="google_home"
@@ -152,3 +167,24 @@ def players(hass: HomeAssistant, soco: MagicMock) -> Generator[None]:
     yield
     # Keep Home Assistant from unloading it with the real Sonos integration.
     sonos_entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
+
+
+@pytest.fixture
+async def voice(
+    hass: HomeAssistant,
+    players: None,  # noqa: ARG001 # pylint: disable=unused-argument
+    config_entry: MockConfigEntry,
+    mock_catalog: AiohttpClientMocker,  # noqa: ARG001 # pylint: disable=unused-argument
+) -> ar.AreaEntry:
+    """Expose the Sonos speakers to Assist and set up Apple Music.
+
+    The woonkamer speaker stands in the area Leefruimte, also called Living.
+    """
+    area = ar.async_get(hass).async_create("Leefruimte", aliases={"Living"})
+    er.async_get(hass).async_update_entity(GROUPED_PLAYER, area_id=area.id)
+    for entity_id in (SONOS_PLAYER, GROUPED_PLAYER):
+        async_expose_entity(hass, "conversation", entity_id, should_expose=True)
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    return area
