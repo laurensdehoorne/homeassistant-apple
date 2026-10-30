@@ -1,0 +1,66 @@
+---
+play:
+  target:
+    entity:
+      integration: sonos
+      domain: media_player
+  fields:
+    query:
+      example: "Stromae"
+      selector:
+        text:
+    media_type:
+      default: song
+      selector:
+        select:
+          translation_key: media_type
+          options:
+            - song
+            - album
+            - artist
+    url:
+      example: "https://music.apple.com/be/album/parachutes/1122782080"
+      selector:
+        text:
+          type: url
+    enqueue:
+      default: replace
+      selector:
+        select:
+          translation_key: enqueue
+          options:
+            - replace
+            - play
+            - next
+            - add
+    limit:
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 50
+          mode: box
+
+search:
+  fields:
+    query:
+      required: true
+      example: "Yellow Coldplay"
+      selector:
+        text:
+    media_type:
+      default: song
+      selector:
+        select:
+          translation_key: media_type
+          options:
+            - song
+            - album
+            - artist
+    limit:
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 50
+          mode: box

@@ -1,0 +1,27 @@
+{
+  "resultCount": 2,
+  "results": [
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 471744,
+      "collectionId": 1122782080,
+      "trackId": 1122782283,
+      "artistName": "Coldplay",
+      "collectionName": "Parachutes",
+      "trackName": "Yellow",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f5/93/8c/f5938c49-964c-31d1-4b33-78b634f71fb7/190295978075.jpg/100x100bb.jpg"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 471744,
+      "collectionId": 693573205,
+      "trackId": 693573510,
+      "artistName": "Coldplay",
+      "collectionName": "Live 2012",
+      "trackName": "Yellow (Live)",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/8d/27/16/8d2716ea-4e3a-466f-5aa7-cf750e762bb6/5099941647356_1500x1500_300dpi.jpg/100x100bb.jpg"
+    }
+  ]
+}

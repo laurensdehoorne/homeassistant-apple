@@ -1,0 +1,113 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Apple Music is al ingesteld."
+    },
+    "error": {
+      "cannot_connect": "De Apple Music-catalogus is niet bereikbaar."
+    },
+    "step": {
+      "user": {
+        "description": "Zoek in Apple Music en speel af op je Sonos-speakers. Koppel Apple Music eerst in de Sonos-app.",
+        "data": {
+          "storefront": "Land"
+        },
+        "data_description": {
+          "storefront": "Het land van je Apple Music-account, dat de catalogus en hitlijsten bepaalt."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Apple Music is niet ingesteld."
+    },
+    "no_sonos_players": {
+      "message": "Apple Music speelt alleen af op Sonos-speakers, kies er minstens één."
+    },
+    "sonos_only": {
+      "message": "Apple Music speelt alleen af op Sonos-speakers, {entity_id} is er geen."
+    },
+    "invalid_url": {
+      "message": "{url} is geen Apple Music-link naar een nummer, album of playlist."
+    },
+    "not_searchable": {
+      "message": "Zoeken naar {media_type} wordt niet ondersteund."
+    },
+    "no_results": {
+      "message": "Niets gevonden op Apple Music voor \"{query}\"."
+    },
+    "not_playable": {
+      "message": "{identifier} kan niet afgespeeld worden."
+    },
+    "unknown_item": {
+      "message": "{identifier} kan niet geopend worden."
+    },
+    "request_failed": {
+      "message": "Apple Music is niet bereikbaar: {error}"
+    }
+  },
+  "selector": {
+    "media_type": {
+      "options": {
+        "song": "Nummer",
+        "album": "Album",
+        "artist": "Artiest (populairste nummers)"
+      }
+    },
+    "enqueue": {
+      "options": {
+        "replace": "Wachtrij vervangen",
+        "play": "Nu afspelen",
+        "next": "Hierna afspelen",
+        "add": "Achteraan toevoegen"
+      }
+    }
+  },
+  "services": {
+    "play": {
+      "name": "Afspelen",
+      "description": "Zoekt in Apple Music en speelt het beste resultaat af op Sonos-speakers.",
+      "fields": {
+        "query": {
+          "name": "Zoekterm",
+          "description": "Waar je naar zoekt, zoals een nummer, album of artiest."
+        },
+        "media_type": {
+          "name": "Type",
+          "description": "Zoek een nummer, een album of de populairste nummers van een artiest."
+        },
+        "url": {
+          "name": "Link",
+          "description": "Een Apple Music-link naar een nummer, album of playlist, in plaats van zoeken."
+        },
+        "enqueue": {
+          "name": "Wachtrij",
+          "description": "Hoe de muziek aan de Sonos-wachtrij toegevoegd wordt."
+        },
+        "limit": {
+          "name": "Aantal nummers",
+          "description": "Hoeveel populaire nummers van een artiest afgespeeld worden."
+        }
+      }
+    },
+    "search": {
+      "name": "Zoeken",
+      "description": "Zoekt in de Apple Music-catalogus en geeft de resultaten terug.",
+      "fields": {
+        "query": {
+          "name": "Zoekterm",
+          "description": "Waar je naar zoekt, zoals een nummer, album of artiest."
+        },
+        "media_type": {
+          "name": "Type",
+          "description": "Zoek nummers, albums of artiesten."
+        },
+        "limit": {
+          "name": "Aantal resultaten",
+          "description": "Hoeveel resultaten teruggegeven worden."
+        }
+      }
+    }
+  }
+}

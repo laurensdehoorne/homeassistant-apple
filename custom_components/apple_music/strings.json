@@ -1,0 +1,113 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Apple Music is already configured."
+    },
+    "error": {
+      "cannot_connect": "Could not reach the Apple Music catalog."
+    },
+    "step": {
+      "user": {
+        "description": "Search Apple Music and play it on your Sonos speakers. Link Apple Music in the Sonos app first.",
+        "data": {
+          "storefront": "Country"
+        },
+        "data_description": {
+          "storefront": "The country of your Apple Music account, which decides the catalog and charts."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Apple Music is not set up."
+    },
+    "no_sonos_players": {
+      "message": "Apple Music can only play on Sonos speakers, choose at least one."
+    },
+    "sonos_only": {
+      "message": "Apple Music can only play on Sonos speakers, {entity_id} is not one."
+    },
+    "invalid_url": {
+      "message": "{url} is not an Apple Music song, album or playlist link."
+    },
+    "not_searchable": {
+      "message": "Searching for {media_type} is not supported."
+    },
+    "no_results": {
+      "message": "Nothing found on Apple Music for \"{query}\"."
+    },
+    "not_playable": {
+      "message": "{identifier} cannot be played."
+    },
+    "unknown_item": {
+      "message": "{identifier} cannot be browsed."
+    },
+    "request_failed": {
+      "message": "Apple Music could not be reached: {error}"
+    }
+  },
+  "selector": {
+    "media_type": {
+      "options": {
+        "song": "Song",
+        "album": "Album",
+        "artist": "Artist (top songs)"
+      }
+    },
+    "enqueue": {
+      "options": {
+        "replace": "Replace the queue",
+        "play": "Play now",
+        "next": "Play next",
+        "add": "Add to the queue"
+      }
+    }
+  },
+  "services": {
+    "play": {
+      "name": "Play",
+      "description": "Searches Apple Music and plays the best match on Sonos speakers.",
+      "fields": {
+        "query": {
+          "name": "Search",
+          "description": "What to search for, like a song, album or artist name."
+        },
+        "media_type": {
+          "name": "Type",
+          "description": "Whether to look for a song, an album or the top songs of an artist."
+        },
+        "url": {
+          "name": "Link",
+          "description": "An Apple Music song, album or playlist link to play instead of searching."
+        },
+        "enqueue": {
+          "name": "Queue",
+          "description": "How to add the music to the Sonos queue."
+        },
+        "limit": {
+          "name": "Number of songs",
+          "description": "How many top songs to play for an artist."
+        }
+      }
+    },
+    "search": {
+      "name": "Search",
+      "description": "Searches the Apple Music catalog and returns the matches.",
+      "fields": {
+        "query": {
+          "name": "Search",
+          "description": "What to search for, like a song, album or artist name."
+        },
+        "media_type": {
+          "name": "Type",
+          "description": "Whether to look for songs, albums or artists."
+        },
+        "limit": {
+          "name": "Number of results",
+          "description": "How many matches to return."
+        }
+      }
+    }
+  }
+}

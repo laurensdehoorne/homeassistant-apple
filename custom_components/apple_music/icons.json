@@ -1,0 +1,10 @@
+{
+  "services": {
+    "play": {
+      "service": "mdi:play-circle"
+    },
+    "search": {
+      "service": "mdi:music-box-multiple"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "domain": "apple_music",
+  "name": "Apple Music",
+  "after_dependencies": ["sonos"],
+  "codeowners": ["@laurensdehoorne"],
+  "config_flow": true,
+  "dependencies": ["media_source"],
+  "documentation": "https://github.com/laurensdehoorne/homeassistant-apple",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/laurensdehoorne/homeassistant-apple/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

@@ -1,0 +1,26 @@
+{
+  "resultCount": 3,
+  "results": [
+    {
+      "wrapperType": "artist",
+      "artistName": "Stromae",
+      "artistId": 270954369
+    },
+    {
+      "wrapperType": "collection",
+      "artistId": 270954369,
+      "collectionId": 1440856001,
+      "artistName": "Stromae",
+      "collectionName": "Racine carrée",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/44/13/e0/4413e0be-302b-fe2a-5c88-5c02389f67df/13UAAIM66791.rgb.jpg/100x100bb.jpg"
+    },
+    {
+      "wrapperType": "collection",
+      "artistId": 270954369,
+      "collectionId": 1440520562,
+      "artistName": "Stromae",
+      "collectionName": "Cheese",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/1a/12/f1/1a12f17e-7a49-339a-6cc7-285551a35b08/10UMGIM14302.rgb.jpg/100x100bb.jpg"
+    }
+  ]
+}

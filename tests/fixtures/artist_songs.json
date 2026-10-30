@@ -1,0 +1,43 @@
+{
+  "resultCount": 4,
+  "results": [
+    {
+      "wrapperType": "artist",
+      "artistName": "Stromae",
+      "artistId": 270954369
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 270954369,
+      "collectionId": 1589216087,
+      "trackId": 1589216089,
+      "artistName": "Stromae",
+      "collectionName": "Santé - Single",
+      "trackName": "Santé",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/04/af/c6/04afc63a-4cf8-7bcf-7884-fb8b031d87f5/21UM1IM20434.rgb.jpg/100x100bb.jpg"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 270954369,
+      "collectionId": 1375875634,
+      "trackId": 1375875957,
+      "artistName": "Stromae",
+      "collectionName": "Défiler (Bande originale de la capsule No. 5 Mosaert) - Single",
+      "trackName": "Défiler (Bande originale de la capsule No. 5 Mosaert)",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/30/d3/5b/30d35bf9-9c70-6a6f-fe5a-f1ac28d7e2de/cover.jpg/100x100bb.jpg"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 270954369,
+      "collectionId": 1440520562,
+      "trackId": 1440520983,
+      "artistName": "Stromae",
+      "collectionName": "Cheese",
+      "trackName": "Alors on danse (Radio Edit)",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/1a/12/f1/1a12f17e-7a49-339a-6cc7-285551a35b08/10UMGIM14302.rgb.jpg/100x100bb.jpg"
+    }
+  ]
+}

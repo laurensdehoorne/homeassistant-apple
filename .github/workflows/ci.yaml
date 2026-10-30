@@ -1,0 +1,71 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DEFAULT_PYTHON: "3.14"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Set up uv and Python ${{ env.DEFAULT_PYTHON }}
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Mypy
+        run: uv run mypy custom_components tests
+
+      - name: Pylint
+        run: uv run pylint custom_components tests
+
+      - name: Codespell
+        run: uv run codespell custom_components tests README.md
+
+      - name: Yamllint
+        run: uv run yamllint .
+
+  pytest:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Set up uv and Python ${{ env.DEFAULT_PYTHON }}
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run pytest
+        run: uv run pytest

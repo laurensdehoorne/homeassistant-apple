@@ -1,0 +1,57 @@
+{
+  "resultCount": 5,
+  "results": [
+    {
+      "wrapperType": "collection",
+      "artistId": 471744,
+      "collectionId": 1122782080,
+      "artistName": "Coldplay",
+      "collectionName": "Parachutes",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f5/93/8c/f5938c49-964c-31d1-4b33-78b634f71fb7/190295978075.jpg/100x100bb.jpg"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 471744,
+      "collectionId": 1122782080,
+      "trackId": 1122782218,
+      "artistName": "Coldplay",
+      "collectionName": "Parachutes",
+      "trackName": "Don't Panic",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f5/93/8c/f5938c49-964c-31d1-4b33-78b634f71fb7/190295978075.jpg/100x100bb.jpg"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 471744,
+      "collectionId": 1122782080,
+      "trackId": 1122782278,
+      "artistName": "Coldplay",
+      "collectionName": "Parachutes",
+      "trackName": "Shiver",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f5/93/8c/f5938c49-964c-31d1-4b33-78b634f71fb7/190295978075.jpg/100x100bb.jpg"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 471744,
+      "collectionId": 1122782080,
+      "trackId": 1122782279,
+      "artistName": "Coldplay",
+      "collectionName": "Parachutes",
+      "trackName": "Spies",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f5/93/8c/f5938c49-964c-31d1-4b33-78b634f71fb7/190295978075.jpg/100x100bb.jpg"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "song",
+      "artistId": 471744,
+      "collectionId": 1122782080,
+      "trackId": 1122782281,
+      "artistName": "Coldplay",
+      "collectionName": "Parachutes",
+      "trackName": "Sparks",
+      "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f5/93/8c/f5938c49-964c-31d1-4b33-78b634f71fb7/190295978075.jpg/100x100bb.jpg"
+    }
+  ]
+}
