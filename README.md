@@ -16,8 +16,8 @@ when your account has another id.
 ## What you get
 
 - **An Apple Music dashboard card**: your playlists, search, the charts, albums
-  and artists, the speaker or Sonos group that plays, shuffle, grouping, volume and
-  a button to ask Assist, in one card.
+  and artists, the speaker or Sonos group that plays, shuffle, grouping, volume, a
+  button for the line-in and a button to ask Assist, in one card.
 - **Voice commands**: say "speel Oasis in de woonkamer" or "play Parachutes in the
   kitchen" to Assist. AI conversation agents get a tool to play music too.
 - **Apple Music in the Sonos media browser**: the top songs and albums of your
@@ -90,6 +90,13 @@ radio:
   - name: Qmusic
     url: https://audio-streaming.qmusic.be/qmusic.mp3
     image: https://cdn-profiles.tunein.com/s87683/images/logog.png
+# Optional: a button that plays the line-in, like a record player.
+line_in:
+  name: Platenspeler
+  # Optional: the icon, mdi:record-player by default.
+  icon: mdi:record-player
+  # Optional: a script to run instead, for instance one that groups speakers first.
+  script: script.platenspeler
 ```
 
 The card shows what plays on the chosen speaker, with buttons to shuffle, pause and
@@ -107,6 +114,13 @@ per browser.
 **Radio** shows the stations of the card's `radio` option, as tiles or as a list.
 A tap plays the station with `apple_music.play_radio`, and the card then shows the
 song on air with the station under it.
+
+**The line-in button** shows next to the group button when the card has a
+`line_in` option. A tap switches the chosen speaker to its line-in and plays it,
+and while the line-in plays the button lights up and the card shows its name.
+With a `script` the button runs the script instead, which gets the chosen speaker
+as `entity_id`, so the script decides which speaker plays its line-in and to which
+speakers.
 
 **Sonos groups** are one choice in the speaker list, like "Era 300 + Era 100", since
 grouped speakers play one queue. The volume slider and the − and + buttons then

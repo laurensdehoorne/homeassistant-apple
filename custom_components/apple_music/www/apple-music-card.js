@@ -33,6 +33,7 @@ const STRINGS = {
     nothing_playing: "Nothing playing",
     playing: "Playing on {speaker}",
     queued: "Added to the queue of {speaker}",
+    started: "Started {name}",
   },
   nl: {
     search: "Zoek nummers, albums, artiesten en afspeellijsten",
@@ -66,6 +67,7 @@ const STRINGS = {
     nothing_playing: "Er speelt niets",
     playing: "Speelt op {speaker}",
     queued: "Toegevoegd aan de wachtrij van {speaker}",
+    started: "{name} gestart",
   },
 };
 
@@ -77,6 +79,8 @@ const SEARCH_DELAY_MS = 350;
 const VOLUME_STEP = 0.05;
 // How long a volume that was set counts, before the speaker reports it.
 const VOLUME_PENDING_MS = 2000;
+// The source Home Assistant's Sonos speakers name their line-in.
+const LINE_IN = "Line-in";
 
 const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ESCAPES[c]);
@@ -191,6 +195,13 @@ class AppleMusicCard extends HTMLElement {
     const radio = config.radio ?? [];
     if (!Array.isArray(radio) || radio.some((station) => !station?.name || !station.url)) {
       throw new Error("radio must be a list of stations, each with a name and url");
+    }
+    const lineIn = config.line_in;
+    if (lineIn !== undefined && !lineIn?.name) {
+      throw new Error("line_in must have a name");
+    }
+    if (lineIn?.script !== undefined && !String(lineIn.script).startsWith("script.")) {
+      throw new Error("the script of line_in must be a script, like script.record_player");
     }
     this._config = config;
     if (this._tab === "radio" && !radio.length) {
@@ -371,18 +382,26 @@ class AppleMusicCard extends HTMLElement {
     }
     const a = state.attributes;
     const playing = state.state === "playing";
+    // The line-in goes by the name and icon of the card's line-in button.
+    const lineIn = this._config.line_in;
+    const onLineIn = a.source === LINE_IN;
+    const lineInIcon = lineIn?.icon ?? "mdi:record-player";
     const art = a.entity_picture
       ? `<img class="art" src="${esc(a.entity_picture)}" alt="">`
-      : `<div class="art"><ha-icon icon="mdi:music"></ha-icon></div>`;
+      : `<div class="art"><ha-icon icon="${esc(onLineIn && lineIn ? lineInIcon : "mdi:music")}"></ha-icon></div>`;
     const options = this._targets()
       .map((target) => {
         const speakers = target.members.map((id) => this._name(id)).join(", ");
         return `<option value="${esc(target.id)}" title="${esc(speakers)}" ${target.id === this._speaker ? "selected" : ""}>${esc(target.name)}</option>`;
       })
       .join("");
+    const lineInButton = lineIn
+      ? `<button class="icon" data-action="line_in" title="${esc(lineIn.name)}" aria-pressed="${onLineIn}">
+          <ha-icon icon="${esc(lineInIcon)}"></ha-icon></button>`
+      : "";
     const grouping = !this.shadowRoot.querySelector(".groups").hidden;
     // A radio stream names the station as the channel and the song on air as the title.
-    const title = a.media_title || a.media_channel || t.nothing_playing;
+    const title = (onLineIn && lineIn?.name) || a.media_title || a.media_channel || t.nothing_playing;
     const sub = a.media_artist || (a.media_channel === title ? "" : a.media_channel);
     player.innerHTML = `
       <div class="now">
@@ -405,6 +424,7 @@ class AppleMusicCard extends HTMLElement {
         <button class="icon" data-action="groups" title="${esc(t.group)}" aria-expanded="${grouping}">
           <ha-icon icon="mdi:speaker-multiple"></ha-icon>
         </button>
+        ${lineInButton}
         <select class="speaker" aria-label="${esc(t.speaker)}">${options}</select>
         <button class="icon" data-volume="-1" title="${esc(t.volume_down)}"><ha-icon icon="mdi:volume-minus"></ha-icon></button>
         <input class="volume" type="range" min="0" max="100" value="${Math.round(this._volume() * 100)}" aria-label="Volume">
@@ -419,6 +439,8 @@ class AppleMusicCard extends HTMLElement {
     } else if (button?.dataset.action === "shuffle") {
       const shuffle = !this._hass.states[this._speaker]?.attributes.shuffle;
       this._hass.callService("media_player", "shuffle_set", { shuffle }, { entity_id: this._speaker });
+    } else if (button?.dataset.action === "line_in") {
+      this._playLineIn();
     } else if (button?.dataset.volume) {
       this._setVolume(this._volume() + Number(button.dataset.volume) * VOLUME_STEP);
     } else if (button?.dataset.action === "groups") {
@@ -635,6 +657,36 @@ class AppleMusicCard extends HTMLElement {
     }
     try {
       await this._hass.callService("apple_music", "play_radio", { url: station.url, name: station.name }, { entity_id: this._speaker });
+    } catch (_err) {
+      // Home Assistant shows the error.
+      return;
+    }
+    this._toast(t.playing.replace("{speaker}", this._name(this._speaker)));
+  }
+
+  // The line-in of the chosen speaker plays, unless the card has a script for it,
+  // which gets the chosen speaker and decides itself where the line-in plays.
+  async _playLineIn() {
+    const t = this._t;
+    const { name, script } = this._config.line_in;
+    if (script) {
+      try {
+        await this._hass.callService("script", "turn_on", { variables: { entity_id: this._speaker } }, { entity_id: script });
+      } catch (_err) {
+        // Home Assistant shows the error.
+        return;
+      }
+      this._toast(t.started.replace("{name}", name));
+      return;
+    }
+    if (!this._speaker) {
+      this._toast(t.no_speakers);
+      return;
+    }
+    try {
+      // Sonos switches to the line-in paused.
+      await this._hass.callService("media_player", "select_source", { source: LINE_IN }, { entity_id: this._speaker });
+      await this._hass.callService("media_player", "media_play", {}, { entity_id: this._speaker });
     } catch (_err) {
       // Home Assistant shows the error.
       return;
