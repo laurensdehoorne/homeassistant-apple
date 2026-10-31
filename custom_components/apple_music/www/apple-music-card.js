@@ -460,11 +460,11 @@ class AppleMusicCard extends HTMLElement {
   // Grouping
 
   // Preset groups are the card's own, then the media player groups of Home
-  // Assistant, as long as the card lists all their speakers. Speakers grouped
-  // the same way show once, under the first name.
+  // Assistant unless the card leaves them out, as long as the card lists all
+  // their speakers. Speakers grouped the same way show once, under the first name.
   _presets() {
     const speakers = this._speakers();
-    const helpers = Object.values(this._hass.entities ?? {})
+    const helpers = Object.values(this._config.helper_groups === false ? {} : (this._hass.entities ?? {}))
       .filter((e) => e.platform === "group" && e.entity_id.startsWith("media_player.") && !e.hidden)
       .map((e) => ({ name: this._name(e.entity_id), members: this._hass.states[e.entity_id]?.attributes.entity_id ?? [] }));
     const presets = [];

@@ -79,6 +79,8 @@ groups:
     entities:
       - media_player.keuken
       - media_player.woonkamer
+# Optional: leave out the media player groups of Home Assistant, shown by default.
+helper_groups: false
 ```
 
 The card shows what plays on the chosen speaker, with buttons to shuffle, pause and
@@ -98,7 +100,8 @@ move every speaker in the group by as much. The group button next to the speaker
 list groups speakers: tick the speakers to play together, or tap a preset group.
 The presets are the `groups` of the card and your media player groups in Home
 Assistant (**Settings → Devices & services → Helpers → Group → Media player
-group**) whose speakers the card all shows. Presets of the same speakers show once,
+group**) whose speakers the card all shows. Set `helper_groups: false` to show
+only the groups of the card, for instance the groups of your Sonos app. Presets of the same speakers show once,
 a group of the card before a group of Home Assistant, and a Sonos group of those
 speakers goes by that name.
 
