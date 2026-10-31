@@ -12,6 +12,7 @@ from homeassistant.components.homeassistant.exposed_entities import (
     async_expose_entity,
 )
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import SupportsResponse
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
@@ -30,7 +31,7 @@ from . import load_json, load_text
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
     from pytest_homeassistant_custom_component.test_util.aiohttp import (
         AiohttpClientMocker,
     )
@@ -188,3 +189,28 @@ async def voice(
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
     return area
+
+
+@pytest.fixture
+def music_assistant(hass: HomeAssistant) -> Generator[list[ServiceCall]]:
+    """Set up Music Assistant, whose search finds Apple Music and Spotify playlists.
+
+    Return the searches it gets.
+    """
+    entry = MockConfigEntry(
+        domain="music_assistant", entry_id="mass", state=ConfigEntryState.LOADED
+    )
+    entry.add_to_hass(hass)
+    searches: list[ServiceCall] = []
+
+    async def search(call: ServiceCall) -> ServiceResponse:
+        searches.append(call)
+        response: ServiceResponse = load_json("music_assistant_search.json")
+        return response
+
+    hass.services.async_register(
+        "music_assistant", "search", search, supports_response=SupportsResponse.ONLY
+    )
+    yield searches
+    # Keep Home Assistant from unloading it with the real Music Assistant integration.
+    entry.mock_state(hass, ConfigEntryState.NOT_LOADED)

@@ -33,7 +33,7 @@ from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.event import async_track_state_added_domain
 from homeassistant.helpers.start import async_at_started
 
-from . import sonos
+from . import music_assistant, sonos
 from .api import AppleMusicCatalog, AppleMusicError, CatalogItem
 from .const import SEARCHABLE_KINDS, SONOS_DOMAIN, Kind
 
@@ -281,13 +281,20 @@ async def async_find_music(
     """Return the best match for a query, among the playlists and the catalog.
 
     The playlists are the Apple Music playlists in the Sonos favorites of the
-    household of entity_id. A kind named in the query wins over the kind passed.
+    household of entity_id. When the query asks for a playlist and none of them
+    has its name, Music Assistant searches the catalog, if it is installed. A kind
+    named in the query wins over the kind passed.
     """
     named, term = _parse(query)
     kind = named or kind
     if kind in (None, Kind.PLAYLIST):
         playlists = await sonos.async_playlists(hass, entity_id)
         found = _playlist(playlists, term) if kind else _named(playlists, term)
+        if found is None and kind == Kind.PLAYLIST:
+            playlists = await music_assistant.async_search_playlists(
+                hass, term, SEARCH_LIMIT
+            )
+            found = _playlist(playlists, term) or next(iter(playlists), None)
         if found:
             return Music(Kind.PLAYLIST, found.name, None, [found])
         if kind == Kind.PLAYLIST:

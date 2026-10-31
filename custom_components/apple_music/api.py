@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 ARTWORK_SIZE = "600x600"
+# The last part of an artwork link names its size, like 400x400cc.jpeg.
+_ARTWORK_SIZE = re.compile(r"/\d+x\d+(?=[^/]*$)")
 
 _SEARCH_ENTITIES = {
     Kind.SONG: "song",
@@ -122,6 +124,11 @@ class CatalogItem:
             "media_content_id": f"media-source://{DOMAIN}/{self.identifier}",
             "artwork_url": self.artwork_url,
         }
+
+
+def resize_artwork(url: str) -> str:
+    """Return the artwork of an Apple Music artwork link at ARTWORK_SIZE."""
+    return _ARTWORK_SIZE.sub(f"/{ARTWORK_SIZE}", url)
 
 
 def _artwork(url: str | None) -> str | None:

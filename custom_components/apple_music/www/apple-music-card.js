@@ -772,14 +772,16 @@ class AppleMusicCard extends HTMLElement {
     }
     if (this._query) {
       const query = this._query;
-      // Apple's search knows no playlists, the Sonos favorites have them.
-      const [{ songs, albums, artists }, playlists] = await Promise.all([
+      // Apple's search knows no playlists: they come from the Sonos favorites and,
+      // when it is installed, from Music Assistant.
+      const [{ songs, albums, artists, playlists: found = [] }, favorites] = await Promise.all([
         this._fetch({ type: "apple_music/search", query }),
         this._playlists().then(
           (items) => items.filter((item) => matches(item.name, query)),
           () => [],
         ),
       ]);
+      const playlists = [...favorites, ...found.filter((item) => !favorites.some((favorite) => favorite.id === item.id))];
       const body =
         this._section(t.playlists, this._playlistItems(playlists), playlists) +
         this._section(t.songs, this._songs(songs), songs) +

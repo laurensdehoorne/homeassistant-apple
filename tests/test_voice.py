@@ -27,7 +27,7 @@ from .conftest import GROUPED_PLAYER, SONOS_PLAYER
 if TYPE_CHECKING:
     from unittest.mock import MagicMock
 
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import HomeAssistant, ServiceCall
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from pytest_homeassistant_custom_component.test_util.aiohttp import (
         AiohttpClientMocker,
@@ -38,6 +38,14 @@ YELLOW = "x-sonos-http:song%3a1122782283.mp4?sid=204&flags=8232&sn=28"
 PARACHUTES = "x-rincon-cpcontainer:1004206calbum%3a1122782080?sid=204&flags=8300&sn=28"
 CURRENT_PLAYLIST = (
     "x-rincon-cpcontainer:1006206cplaylist%3apl.bbb?sid=204&flags=8300&sn=28"
+)
+DINNERPARTY = (
+    "x-rincon-cpcontainer:1006206cplaylist%3apl.6a236667fbc046a49b48ea9cf4e8b639"
+    "?sid=204&flags=8300&sn=28"
+)
+PIANOBAR = (
+    "x-rincon-cpcontainer:1006206cplaylist%3apl.fc0d9d21c13c46149110dfd8dd844896"
+    "?sid=204&flags=8300&sn=28"
 )
 
 
@@ -121,6 +129,51 @@ async def test_play(
     soco.clear_queue.assert_called_once()
     assert _queued(soco)[0] == first
     soco.play_from_queue.assert_called_once_with(0)
+
+
+@pytest.mark.usefixtures("voice", "music_assistant")
+@pytest.mark.parametrize(
+    ("sentence", "answer", "first"),
+    [
+        (
+            "speel de afspeellijst pianobar op keuken",
+            "Ik speel de afspeellijst Pianobar op Keuken.",
+            PIANOBAR,
+        ),
+        (
+            "speel de afspeellijst dinner op keuken",
+            "Ik speel de afspeellijst Dinnerparty essentials op Keuken.",
+            DINNERPARTY,
+        ),
+        # No name has it: Apple's best match plays.
+        (
+            "speel de afspeellijst etentje op keuken",
+            "Ik speel de afspeellijst Dinnerparty essentials op Keuken.",
+            DINNERPARTY,
+        ),
+    ],
+)
+async def test_play_playlist_music_assistant(
+    hass: HomeAssistant, soco: MagicMock, sentence: str, answer: str, first: str
+) -> None:
+    """Test Music Assistant finds the playlists that are no Sonos favorite."""
+    assert await _say(hass, sentence) == answer
+
+    assert _queued(soco) == [first]
+
+
+@pytest.mark.usefixtures("voice")
+@pytest.mark.parametrize(
+    "sentence",
+    ["speel stromae op de keuken", "speel de afspeellijst current account op keuken"],
+)
+async def test_play_without_music_assistant(
+    hass: HomeAssistant, music_assistant: list[ServiceCall], sentence: str
+) -> None:
+    """Test Music Assistant is only asked for a playlist that is no Sonos favorite."""
+    assert (await _say(hass, sentence)).startswith("Ik speel")
+
+    assert not music_assistant
 
 
 @pytest.mark.usefixtures("voice")

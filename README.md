@@ -38,6 +38,8 @@ when your account has another id.
   (**Settings → Services & Voice**).
 - At least one Apple Music song, album or playlist in your Sonos favorites. The
   integration reads the account to play with from it.
+- Optional: [Music Assistant](https://www.home-assistant.io/integrations/music_assistant/)
+  with its Apple Music provider, to find the playlists of the Apple Music catalog.
 
 No Apple Developer account or password is needed. Searching uses Apple's public
 iTunes Search API, the charts come from Apple's public RSS feeds.
@@ -93,7 +95,8 @@ radio:
 The card shows what plays on the chosen speaker, with buttons to shuffle, pause and
 skip, a search box, your playlists, and the top songs and albums. Tap a song to play it right away, or ⋮ to play it next,
 add it to the queue or replace the queue. Playlists, albums and artists open, with
-buttons to play them. Searching finds playlists too. The card remembers the speaker
+buttons to play them. Searching finds your playlists too, and with Music Assistant
+the playlists of the whole catalog. The card remembers the speaker
 per browser.
 
 **Playlists** are the Apple Music playlists in your Sonos favorites. To add one,
@@ -119,6 +122,14 @@ speakers goes by that name.
 **The microphone** opens Assist and listens right away, so you can say "speel Oasis
 in de keuken". Browsers only let Assist use the microphone over HTTPS, in the
 Home Assistant app it always works. Without it you type to Assist instead.
+
+### Music Assistant
+
+Apple's public search knows no playlists. When [Music Assistant](https://www.home-assistant.io/integrations/music_assistant/)
+runs with its Apple Music provider, the card's search and the voice commands that
+ask for a playlist find the playlists of the Apple Music catalog through it, like
+"Oasis essentials". Music Assistant only searches: the playlists play on Sonos the
+way the Sonos app plays them. Without it nothing changes.
 
 ### Media browser
 
@@ -210,13 +221,16 @@ tell Assist what to play and where:
 | speel het album Parachutes op de Era 100 | play the album Parachutes on the Era 100 | an album |
 | speel het nummer Wonderwall van Oasis in de keuken | play the song Wonderwall by Oasis in the kitchen | a song |
 | speel muziek van Stromae in de keuken | play music by Stromae in the kitchen | the top songs of an artist |
-| speel de afspeellijst Koffietentje in de keuken | play the playlist Koffietentje in the kitchen | a playlist from your Sonos favorites |
+| speel de afspeellijst Koffietentje in de keuken | play the playlist Koffietentje in the kitchen | a playlist from your Sonos favorites, or with Music Assistant from the catalog |
 
 Name a speaker, or an area to play on all its exposed Sonos speakers, grouped. The
 names and aliases of speakers and areas all work, so add an alias like "Woonkamer"
 to an area to call it that. Without a type the integration looks for a playlist in
 your Sonos favorites with that name first, then for an artist, album or song with
 that exact name, then for the best matching song.
+
+A playlist that is no Sonos favorite is looked up in the catalog through Music
+Assistant, if it is installed: Apple's best match plays.
 
 The sentences work with every Assist pipeline, also with an AI conversation agent:
 Home Assistant answers them before the agent. An AI agent that may control Home
@@ -231,9 +245,10 @@ alone, by the sentences and by the tool.
   or playlist, which `media_player.play_media` cannot pass, so play those with
   `apple_music.play`.
 - Without an Apple Developer account there is no access to your library, so
-  searching finds songs, albums and artists, not playlists. Save your playlists as
-  Sonos favorites to find them in the card and by voice, or play them by link. The
-  card does not show the songs of a playlist.
+  searching finds songs, albums and artists, not playlists, unless Music Assistant
+  finds those. Save your own playlists as Sonos favorites to find them in the card
+  and by voice, or play them by link. The card does not show the songs of a
+  playlist.
 - Artist radio stations are not supported, playing an artist plays their most
   popular songs.
 - Apple's chart feeds go down now and then. The media browser then shows the last

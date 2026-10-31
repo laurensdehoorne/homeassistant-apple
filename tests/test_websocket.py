@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from homeassistant.core import SupportsResponse
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.apple_music.const import SEARCH_URL
 
@@ -13,7 +15,7 @@ from .conftest import ALBUM_ID, ARTIST_ID, OTHER_PLAYER, SONOS_PLAYER
 if TYPE_CHECKING:
     from unittest.mock import MagicMock
 
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from pytest_homeassistant_custom_component.test_util.aiohttp import (
         AiohttpClientMocker,
@@ -91,7 +93,61 @@ async def test_search(hass_ws_client: WebSocketGenerator) -> None:
         "songs": ["Yellow", "Yellow (Live)"],
         "albums": ["Parachutes"],
         "artists": ["Stromae"],
+        "playlists": [],
     }
+
+
+async def test_search_music_assistant(
+    hass_ws_client: WebSocketGenerator, music_assistant: list[ServiceCall]
+) -> None:
+    """Test Music Assistant finds the Apple Music playlists of a search."""
+    response = await _send(hass_ws_client, type="apple_music/search", query="dinner")
+
+    assert music_assistant[0].data == {
+        "config_entry_id": "mass",
+        "name": "dinner",
+        "media_type": ["playlist"],
+        "limit": 12,
+    }
+    playlists = response["result"]["playlists"]
+    assert _names(playlists) == ["Dinnerparty essentials", "Pianobar"]
+    assert playlists[0] == {
+        "media_type": "playlist",
+        "id": "pl.6a236667fbc046a49b48ea9cf4e8b639",
+        "name": "Dinnerparty essentials",
+        "artist": None,
+        "album": None,
+        "url": "https://music.apple.com/be/playlist/-/pl.6a236667fbc046a49b48ea9cf4e8b639",
+        "media_content_id": (
+            "media-source://apple_music/playlist/pl.6a236667fbc046a49b48ea9cf4e8b639"
+        ),
+        "artwork_url": (
+            "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/b0/ae/09/"
+            "ae4d8ced.png/600x600SC.DN02.jpg?l=nl-NL"
+        ),
+    }
+    assert playlists[1]["artwork_url"] is None
+
+
+async def test_search_music_assistant_failed(
+    hass: HomeAssistant,
+    hass_ws_client: WebSocketGenerator,
+    music_assistant: list[ServiceCall],  # noqa: ARG001 # pylint: disable=unused-argument
+) -> None:
+    """Test a search still finds songs when Music Assistant fails."""
+
+    async def search(_call: ServiceCall) -> ServiceResponse:
+        message = "Music Assistant is not connected"
+        raise HomeAssistantError(message)
+
+    hass.services.async_register(
+        "music_assistant", "search", search, supports_response=SupportsResponse.ONLY
+    )
+
+    response = await _send(hass_ws_client, type="apple_music/search", query="x")
+
+    assert response["result"]["playlists"] == []
+    assert _names(response["result"]["songs"]) == ["Yellow", "Yellow (Live)"]
 
 
 async def test_request_failed(

@@ -24,7 +24,7 @@ from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
-from .api import ARTWORK_SIZE, CatalogItem, is_library_playlist
+from .api import CatalogItem, is_library_playlist, resize_artwork
 from .const import DOMAIN, SONOS_DOMAIN, Kind
 
 if TYPE_CHECKING:
@@ -47,8 +47,6 @@ _PLAYLIST = re.compile(
     rf"\?sid={APPLE_MUSIC_SID}&",
     re.IGNORECASE,
 )
-# The last part of an artwork link names its size, like 400x400cc.jpeg.
-_ART_SIZE = re.compile(r"/\d+x\d+(?=[^/]*$)")
 
 # The URI, item id prefix and class Sonos uses for each kind of Apple Music item.
 _ITEMS = {
@@ -129,11 +127,9 @@ def find_playlists(favorites: str) -> list[CatalogItem]:
                 kind=Kind.PLAYLIST,
                 id=playlist.group(1),
                 name=html.unescape(title.group(1)) if title else "",
-                artwork_url=(
-                    _ART_SIZE.sub(f"/{ARTWORK_SIZE}", html.unescape(art.group(1)))
-                    if art
-                    else None
-                ),
+                artwork_url=resize_artwork(html.unescape(art.group(1)))
+                if art
+                else None,
             )
         )
     return playlists

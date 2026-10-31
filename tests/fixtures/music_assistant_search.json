@@ -1,0 +1,37 @@
+{
+  "artists": [],
+  "albums": [],
+  "tracks": [],
+  "playlists": [
+    {
+      "media_type": "playlist",
+      "uri": "apple_music--wHd9x2h6://playlist/pl.6a236667fbc046a49b48ea9cf4e8b639",
+      "name": "Dinnerparty essentials",
+      "version": "",
+      "image": "https://is1-ssl.mzstatic.com/image/thumb/Features/v4/b0/ae/09/ae4d8ced.png/1000x1000SC.DN02.jpg?l=nl-NL",
+      "favorite": false,
+      "explicit": null
+    },
+    {
+      "media_type": "playlist",
+      "uri": "spotify--Kq3tJ2Lx://playlist/37i9dQZF1DX4xuWVBs4FgJ",
+      "name": "Dinner with Friends",
+      "version": "",
+      "image": null,
+      "favorite": false,
+      "explicit": null
+    },
+    {
+      "media_type": "playlist",
+      "uri": "apple_music--wHd9x2h6://playlist/pl.fc0d9d21c13c46149110dfd8dd844896",
+      "name": "Pianobar",
+      "version": "",
+      "image": null,
+      "favorite": false,
+      "explicit": null
+    }
+  ],
+  "radio": [],
+  "audiobooks": [],
+  "podcasts": []
+}

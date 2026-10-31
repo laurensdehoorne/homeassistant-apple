@@ -11,7 +11,7 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
-from . import sonos
+from . import music_assistant, sonos
 from .api import AppleMusicCatalog, AppleMusicError, CatalogItem
 from .const import CHART_KINDS, Kind
 from .helpers import get_catalog, is_sonos_player
@@ -130,16 +130,25 @@ async def ws_artist(
 async def ws_search(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Send the songs, albums and artists matching a search."""
+    """Send the songs, albums, artists and playlists matching a search.
+
+    The playlists come from Music Assistant, none without it.
+    """
 
     async def fetch(catalog: AppleMusicCatalog) -> dict[str, list[CatalogItem]]:
-        songs, albums, artists = await asyncio.gather(
+        songs, albums, artists, playlists = await asyncio.gather(
             *(
                 catalog.search(msg["query"], kind, SEARCH_LIMIT)
                 for kind in (Kind.SONG, Kind.ALBUM, Kind.ARTIST)
-            )
+            ),
+            music_assistant.async_search_playlists(hass, msg["query"], SEARCH_LIMIT),
         )
-        return {"songs": songs, "albums": albums, "artists": artists}
+        return {
+            "songs": songs,
+            "albums": albums,
+            "artists": artists,
+            "playlists": playlists,
+        }
 
     await _async_send(hass, connection, msg, fetch)
 
