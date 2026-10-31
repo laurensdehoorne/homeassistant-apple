@@ -18,6 +18,7 @@ const STRINGS = {
     play_top_songs: "Play top songs",
     show_list: "Show as a list",
     show_tiles: "Show as tiles",
+    shuffle: "Shuffle",
     play_now: "Play now",
     play_next: "Play next",
     add: "Add to queue",
@@ -49,6 +50,7 @@ const STRINGS = {
     play_top_songs: "Speel top nummers",
     show_list: "Toon als lijst",
     show_tiles: "Toon als tegels",
+    shuffle: "Willekeurig afspelen",
     play_now: "Nu afspelen",
     play_next: "Hierna afspelen",
     add: "Achteraan toevoegen",
@@ -104,7 +106,7 @@ const STYLE = `
   .volume { width: 96px; accent-color: var(--primary-color); }
   .icon { width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--secondary-text-color); }
   .icon:hover, .icon:focus-visible { background: var(--secondary-background-color); color: var(--primary-text-color); outline: none; }
-  .icon.accent, .icon[aria-expanded="true"] { color: var(--primary-color); }
+  .icon.accent, .icon[aria-expanded="true"], .icon[aria-pressed="true"] { color: var(--primary-color); }
   .groups { display: flex; flex-direction: column; gap: 8px; padding: 4px 16px 12px; border-bottom: 1px solid var(--divider-color); }
   .groups[hidden] { display: none; }
   .presets { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -377,6 +379,9 @@ class AppleMusicCard extends HTMLElement {
           <div class="sub">${esc(a.media_artist ?? "")}</div>
         </div>
         <div class="controls">
+          <button class="icon" data-action="shuffle" title="${esc(t.shuffle)}" aria-pressed="${Boolean(a.shuffle)}">
+            <ha-icon icon="${a.shuffle ? "mdi:shuffle-variant" : "mdi:shuffle-disabled"}"></ha-icon>
+          </button>
           <button class="icon" data-service="media_play_pause" title="${esc(t.play)}">
             <ha-icon icon="${playing ? "mdi:pause" : "mdi:play"}"></ha-icon>
           </button>
@@ -398,6 +403,9 @@ class AppleMusicCard extends HTMLElement {
     const button = ev.target.closest("button");
     if (button?.dataset.service) {
       this._hass.callService("media_player", button.dataset.service, {}, { entity_id: this._speaker });
+    } else if (button?.dataset.action === "shuffle") {
+      const shuffle = !this._hass.states[this._speaker]?.attributes.shuffle;
+      this._hass.callService("media_player", "shuffle_set", { shuffle }, { entity_id: this._speaker });
     } else if (button?.dataset.volume) {
       this._setVolume(this._volume() + Number(button.dataset.volume) * VOLUME_STEP);
     } else if (button?.dataset.action === "groups") {

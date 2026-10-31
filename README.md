@@ -16,8 +16,8 @@ when your account has another id.
 ## What you get
 
 - **An Apple Music dashboard card**: your playlists, search, the charts, albums
-  and artists, the speaker or Sonos group that plays, grouping, volume and a button
-  to ask Assist, in one card.
+  and artists, the speaker or Sonos group that plays, shuffle, grouping, volume and
+  a button to ask Assist, in one card.
 - **Voice commands**: say "speel Oasis in de woonkamer" or "play Parachutes in the
   kitchen" to Assist. AI conversation agents get a tool to play music too.
 - **Apple Music in the Sonos media browser**: the top songs and albums of your
@@ -81,8 +81,8 @@ groups:
       - media_player.woonkamer
 ```
 
-The card shows what plays on the chosen speaker, a search box, your playlists, and
-the top songs and albums. Tap a song to play it right away, or ⋮ to play it next,
+The card shows what plays on the chosen speaker, with buttons to shuffle, pause and
+skip, a search box, your playlists, and the top songs and albums. Tap a song to play it right away, or ⋮ to play it next,
 add it to the queue or replace the queue. Playlists, albums and artists open, with
 buttons to play them. Searching finds playlists too. The card remembers the speaker
 per browser.
