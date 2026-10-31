@@ -26,6 +26,8 @@ when your account has another id.
 - **`apple_music.play`**: play the best match for a song, an album or the top songs
   of an artist, or any Apple Music song, album, artist or playlist link. Replace the
   queue, play now, play next or add to the queue.
+- **`apple_music.play_radio`**: play an internet radio stream on Sonos speakers,
+  named like a station in the Sonos app.
 - **`apple_music.search`**: search the catalog and get the matches back, for
   scripts and AI voice assistants.
 
@@ -81,6 +83,11 @@ groups:
       - media_player.woonkamer
 # Optional: leave out the media player groups of Home Assistant, shown by default.
 helper_groups: false
+# Optional: radio stations for the Radio tab, with an optional logo.
+radio:
+  - name: Qmusic
+    url: https://audio-streaming.qmusic.be/qmusic.mp3
+    image: https://cdn-profiles.tunein.com/s87683/images/logog.png
 ```
 
 The card shows what plays on the chosen speaker, with buttons to shuffle, pause and
@@ -93,6 +100,10 @@ per browser.
 give it a heart in the Sonos app: the card reads the favorites every time. The
 button next to the tabs shows them as tiles or as a list, which the card remembers
 per browser.
+
+**Radio** shows the stations of the card's `radio` option, as tiles or as a list.
+A tap plays the station with `apple_music.play_radio`, and the card then shows the
+song on air with the station under it.
 
 **Sonos groups** are one choice in the speaker list, like "Era 300 + Era 100", since
 grouped speakers play one queue. The volume slider and the − and + buttons then
@@ -159,6 +170,18 @@ target:
   entity_id: media_player.keuken
 data:
   url: https://music.apple.com/be/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb
+```
+
+Play an internet radio stream, an MP3 or AAC link. The name shows in the Sonos app
+and in Home Assistant, with the song on air:
+
+```yaml
+action: apple_music.play_radio
+target:
+  entity_id: media_player.keuken
+data:
+  url: https://audio-streaming.qmusic.be/qmusic.mp3
+  name: Qmusic
 ```
 
 Search:

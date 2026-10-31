@@ -37,6 +37,7 @@ DINNER = (
 SANTE = "x-sonos-http:song%3a1589216089.mp4?sid=204&flags=8232&sn=28"
 DEFILER = "x-sonos-http:song%3a1375875957.mp4?sid=204&flags=8232&sn=28"
 ALORS_ON_DANSE = "x-sonos-http:song%3a1440520983.mp4?sid=204&flags=8232&sn=28"
+QMUSIC = "https://audio-streaming.qmusic.be/qmusic.mp3"
 
 
 def _queued(soco: MagicMock) -> list[tuple[str, int]]:
@@ -338,6 +339,38 @@ async def test_play_request_failed(
         await _play(hass, query="yellow")
 
     assert err.value.translation_key == "request_failed"
+
+
+@pytest.mark.parametrize(
+    ("data", "title"),
+    [({"name": "Qmusic"}, "Qmusic"), ({}, QMUSIC)],
+)
+async def test_play_radio(
+    hass: HomeAssistant, soco: MagicMock, data: dict[str, str], title: str
+) -> None:
+    """Test a radio stream plays once on grouped speakers, named after the station."""
+    await hass.services.async_call(
+        DOMAIN,
+        "play_radio",
+        {"entity_id": [SONOS_PLAYER, GROUPED_PLAYER], "url": QMUSIC, **data},
+        blocking=True,
+    )
+
+    soco.play_uri.assert_called_once_with(QMUSIC, title=title, force_radio=True)
+
+
+async def test_play_radio_only_on_sonos(hass: HomeAssistant, soco: MagicMock) -> None:
+    """Test a radio stream is refused for speakers of another brand."""
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            "play_radio",
+            {"entity_id": OTHER_PLAYER, "url": QMUSIC},
+            blocking=True,
+        )
+
+    assert err.value.translation_key == "no_sonos_players"
+    soco.play_uri.assert_not_called()
 
 
 async def test_search(hass: HomeAssistant) -> None:

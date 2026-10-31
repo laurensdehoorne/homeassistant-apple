@@ -100,6 +100,20 @@
         }
       }
     },
+    "play_radio": {
+      "name": "Play radio",
+      "description": "Plays an internet radio stream on Sonos speakers, like a station in the Sonos app.",
+      "fields": {
+        "url": {
+          "name": "Stream",
+          "description": "The link of the radio stream, an MP3 or AAC stream."
+        },
+        "name": {
+          "name": "Station",
+          "description": "The name the Sonos app and Home Assistant show for the station. The link when left out."
+        }
+      }
+    },
     "search": {
       "name": "Search",
       "description": "Searches the Apple Music catalog and returns the matches.",

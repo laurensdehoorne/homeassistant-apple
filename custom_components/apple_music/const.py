@@ -22,8 +22,10 @@ ATTR_QUERY: Final = "query"
 ATTR_URL: Final = "url"
 ATTR_KIND: Final = "media_type"
 ATTR_LIMIT: Final = "limit"
+ATTR_NAME: Final = "name"
 
 SERVICE_PLAY: Final = "play"
+SERVICE_PLAY_RADIO: Final = "play_radio"
 SERVICE_SEARCH: Final = "search"
 
 SONOS_DOMAIN: Final = "sonos"

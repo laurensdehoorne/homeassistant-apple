@@ -25,11 +25,13 @@ from .api import AppleMusicCatalog, AppleMusicError, CatalogItem, parse_url
 from .const import (
     ATTR_KIND,
     ATTR_LIMIT,
+    ATTR_NAME,
     ATTR_QUERY,
     ATTR_URL,
     DOMAIN,
     SEARCHABLE_KINDS,
     SERVICE_PLAY,
+    SERVICE_PLAY_RADIO,
     SERVICE_SEARCH,
     Kind,
 )
@@ -50,6 +52,13 @@ PLAY_SCHEMA = probatio.All(
         }
     ),
     cv.has_at_least_one_key(ATTR_QUERY, ATTR_URL),
+)
+
+PLAY_RADIO_SCHEMA = cv.make_entity_service_schema(
+    {
+        probatio.Required(ATTR_URL): cv.url,
+        probatio.Optional(ATTR_NAME): cv.string,
+    }
 )
 
 SEARCH_SCHEMA = probatio.Schema(
@@ -136,6 +145,20 @@ async def _async_from_url(
     return [CatalogItem(kind=kind, id=item_id, name="")]
 
 
+async def _async_players(hass: HomeAssistant, call: ServiceCall) -> list[str]:
+    """Return the Sonos speakers an action targets, or raise when there are none."""
+    players = sorted(
+        entity_id
+        for entity_id in await async_extract_entity_ids(call)
+        if is_sonos_player(hass, entity_id)
+    )
+    if not players:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="no_sonos_players"
+        )
+    return players
+
+
 @callback
 def async_setup_services(hass: HomeAssistant) -> None:
     """Register the Apple Music actions."""
@@ -143,15 +166,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
     async def async_play(call: ServiceCall) -> ServiceResponse:
         """Play a song, album, artist or Apple Music link on Sonos speakers."""
         catalog = _catalog(hass)
-        players = sorted(
-            entity_id
-            for entity_id in await async_extract_entity_ids(call)
-            if is_sonos_player(hass, entity_id)
-        )
-        if not players:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN, translation_key="no_sonos_players"
-            )
+        players = await _async_players(hass, call)
 
         if url := call.data.get(ATTR_URL):
             items = await _async_from_url(catalog, url, call.data[ATTR_LIMIT])
@@ -167,6 +182,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
         if not call.return_response:
             return None
         return {"items": [item.as_dict(catalog.storefront) for item in items]}
+
+    async def async_play_radio(call: ServiceCall) -> None:
+        """Play an internet radio stream on Sonos speakers."""
+        players = await _async_players(hass, call)
+        url = call.data[ATTR_URL]
+        await sonos.async_play_radio(hass, players, url, call.data.get(ATTR_NAME, url))
 
     async def async_search(call: ServiceCall) -> ServiceResponse:
         """Search the Apple Music catalog."""
@@ -189,6 +210,9 @@ def async_setup_services(hass: HomeAssistant) -> None:
         async_play,
         schema=PLAY_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_PLAY_RADIO, async_play_radio, schema=PLAY_RADIO_SCHEMA
     )
     hass.services.async_register(
         DOMAIN,

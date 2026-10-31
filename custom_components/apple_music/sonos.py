@@ -255,6 +255,15 @@ def _coordinator(hass: HomeAssistant, entity_id: str) -> Any:
     )
 
 
+def _coordinators(hass: HomeAssistant, entity_ids: list[str]) -> list[Any]:
+    """Return the group coordinators of Sonos speakers, each once."""
+    # Grouped speakers share the one queue of their coordinator.
+    coordinators = {
+        id(soco): soco for soco in (_coordinator(hass, e) for e in entity_ids)
+    }
+    return list(coordinators.values())
+
+
 async def async_play(
     hass: HomeAssistant,
     entity_ids: list[str],
@@ -262,14 +271,28 @@ async def async_play(
     enqueue: MediaPlayerEnqueue,
 ) -> None:
     """Play Apple Music songs, albums or playlists on Sonos speakers."""
-    # Grouped speakers share the one queue of their coordinator.
-    coordinators = {
-        id(soco): soco for soco in (_coordinator(hass, e) for e in entity_ids)
-    }
     await asyncio.gather(
         *(
             hass.async_add_executor_job(_call, _queue, soco, items, enqueue)
-            for soco in coordinators.values()
+            for soco in _coordinators(hass, entity_ids)
+        )
+    )
+
+
+def _play_radio(soco: Any, url: str, name: str) -> None:
+    """Play an internet radio stream, named like a station in the Sonos app."""
+    # As a radio stream with a title, Sonos shows the station and the song on air.
+    soco.play_uri(url, title=name, force_radio=True)
+
+
+async def async_play_radio(
+    hass: HomeAssistant, entity_ids: list[str], url: str, name: str
+) -> None:
+    """Play an internet radio stream on Sonos speakers."""
+    await asyncio.gather(
+        *(
+            hass.async_add_executor_job(_call, _play_radio, soco, url, name)
+            for soco in _coordinators(hass, entity_ids)
         )
     )
 

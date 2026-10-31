@@ -41,6 +41,23 @@ play:
           max: 50
           mode: box
 
+play_radio:
+  target:
+    entity:
+      integration: sonos
+      domain: media_player
+  fields:
+    url:
+      required: true
+      example: "https://audio-streaming.qmusic.be/qmusic.mp3"
+      selector:
+        text:
+          type: url
+    name:
+      example: "Qmusic"
+      selector:
+        text:
+
 search:
   fields:
     query:

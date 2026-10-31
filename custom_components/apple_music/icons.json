@@ -3,6 +3,9 @@
     "play": {
       "service": "mdi:play-circle"
     },
+    "play_radio": {
+      "service": "mdi:radio"
+    },
     "search": {
       "service": "mdi:music-box-multiple"
     }

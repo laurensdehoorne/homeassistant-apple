@@ -100,6 +100,20 @@
         }
       }
     },
+    "play_radio": {
+      "name": "Radio afspelen",
+      "description": "Speelt een internetradiostream af op Sonos-speakers, zoals een zender in de Sonos-app.",
+      "fields": {
+        "url": {
+          "name": "Stream",
+          "description": "De link van de radiostream, een MP3- of AAC-stream."
+        },
+        "name": {
+          "name": "Zender",
+          "description": "De naam die de Sonos-app en Home Assistant voor de zender tonen. Zonder naam de link."
+        }
+      }
+    },
     "search": {
       "name": "Zoeken",
       "description": "Zoekt in de Apple Music-catalogus en geeft de resultaten terug.",

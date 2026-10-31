@@ -19,6 +19,7 @@ const STRINGS = {
     show_list: "Show as a list",
     show_tiles: "Show as tiles",
     shuffle: "Shuffle",
+    radio: "Radio",
     play_now: "Play now",
     play_next: "Play next",
     add: "Add to queue",
@@ -51,6 +52,7 @@ const STRINGS = {
     show_list: "Toon als lijst",
     show_tiles: "Toon als tegels",
     shuffle: "Willekeurig afspelen",
+    radio: "Radio",
     play_now: "Nu afspelen",
     play_next: "Hierna afspelen",
     add: "Achteraan toevoegen",
@@ -89,7 +91,8 @@ const matches = (name, query) =>
 const sameSpeakers = (a, b) => a.length === b.length && a.every((id) => b.includes(id));
 
 // Apple serves the artwork in any size, the catalog hands out 600x600.
-const artwork = (url, size) => (url ? url.replace("600x600", `${size}x${size}`) : "");
+// Other images, like the logo of a radio station, keep their size.
+const artwork = (url, size) => (url ? url.replace(/(\.mzstatic\.com\/.*)600x600/, `$1${size}x${size}`) : "");
 
 const STYLE = `
   :host { display: block; }
@@ -185,7 +188,14 @@ class AppleMusicCard extends HTMLElement {
     if (!Array.isArray(groups) || groups.some((group) => !group?.name || !Array.isArray(group.entities))) {
       throw new Error("groups must be a list of groups, each with a name and entities");
     }
+    const radio = config.radio ?? [];
+    if (!Array.isArray(radio) || radio.some((station) => !station?.name || !station.url)) {
+      throw new Error("radio must be a list of stations, each with a name and url");
+    }
     this._config = config;
+    if (this._tab === "radio" && !radio.length) {
+      this._tab = "playlist";
+    }
     if (this._hass) {
       this._build();
     }
@@ -371,12 +381,15 @@ class AppleMusicCard extends HTMLElement {
       })
       .join("");
     const grouping = !this.shadowRoot.querySelector(".groups").hidden;
+    // A radio stream names the station as the channel and the song on air as the title.
+    const title = a.media_title || a.media_channel || t.nothing_playing;
+    const sub = a.media_artist || (a.media_channel === title ? "" : a.media_channel);
     player.innerHTML = `
       <div class="now">
         ${art}
         <div class="meta">
-          <div class="title">${esc(a.media_title || t.nothing_playing)}</div>
-          <div class="sub">${esc(a.media_artist ?? "")}</div>
+          <div class="title">${esc(title)}</div>
+          <div class="sub">${esc(sub ?? "")}</div>
         </div>
         <div class="controls">
           <button class="icon" data-action="shuffle" title="${esc(t.shuffle)}" aria-pressed="${Boolean(a.shuffle)}">
@@ -614,6 +627,21 @@ class AppleMusicCard extends HTMLElement {
     this._toast(message.replace("{speaker}", this._name(this._speaker)));
   }
 
+  async _playRadio(station) {
+    const t = this._t;
+    if (!this._speaker) {
+      this._toast(t.no_speakers);
+      return;
+    }
+    try {
+      await this._hass.callService("apple_music", "play_radio", { url: station.url, name: station.name }, { entity_id: this._speaker });
+    } catch (_err) {
+      // Home Assistant shows the error.
+      return;
+    }
+    this._toast(t.playing.replace("{speaker}", this._name(this._speaker)));
+  }
+
   _toast(message) {
     this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
   }
@@ -638,9 +666,11 @@ class AppleMusicCard extends HTMLElement {
     if (!el) {
       return;
     }
-    const { action, url, enqueue, key, tab } = el.dataset;
+    const { action, url, enqueue, key, tab, station } = el.dataset;
     if (action === "play") {
       this._play(url, enqueue);
+    } else if (action === "radio") {
+      this._playRadio(this._config.radio[Number(station)]);
     } else if (action === "more") {
       const actions = el.closest(".row").nextElementSibling;
       actions.hidden = !actions.hidden;
@@ -693,12 +723,13 @@ class AppleMusicCard extends HTMLElement {
         ["playlist", t.playlists],
         ["song", t.top_songs],
         ["album", t.top_albums],
+        ...(this._config.radio?.length ? [["radio", t.radio]] : []),
       ]
         .map(([tab, label]) => `<button class="tab" data-action="tab" data-tab="${tab}" aria-pressed="${tab === this._tab}">${esc(label)}</button>`)
         .join("");
       const list = this._layout === "list";
       const layout =
-        this._tab === "playlist"
+        this._tab === "playlist" || this._tab === "radio"
           ? `<button class="icon layout" data-action="layout" title="${esc(list ? t.show_tiles : t.show_list)}">
               <ha-icon icon="${list ? "mdi:view-grid-outline" : "mdi:view-list"}"></ha-icon></button>`
           : "";
@@ -763,6 +794,9 @@ class AppleMusicCard extends HTMLElement {
       const items = await this._playlists();
       return items.length ? this._playlistItems(items) : `<div class="status">${esc(t.no_playlists)}</div>`;
     }
+    if (this._tab === "radio") {
+      return this._stations();
+    }
     const { items } = await this._fetch({ type: "apple_music/charts", media_type: this._tab });
     return this._tab === "song" ? this._songs(items) : this._albums(items);
   }
@@ -806,11 +840,43 @@ class AppleMusicCard extends HTMLElement {
       .join("");
   }
 
-  // Playlists can come without artwork.
-  _art(url, size, className) {
+  // Playlists and radio stations can come without artwork.
+  _art(url, size, className, icon = "mdi:playlist-music") {
     return url
       ? `<img class="${className}" src="${esc(artwork(url, size))}" loading="lazy" alt="">`
-      : `<div class="${className} placeholder"><ha-icon icon="mdi:playlist-music"></ha-icon></div>`;
+      : `<div class="${className} placeholder"><ha-icon icon="${icon}"></ha-icon></div>`;
+  }
+
+  // The radio stations of the card, which play on a tap.
+  _stations() {
+    const t = this._t;
+    const stations = this._config.radio;
+    if (this._layout === "list") {
+      return stations
+        .map(
+          (station, i) => `
+            <div class="row">
+              ${this._art(station.image, 120, "thumb", "mdi:radio")}
+              <button class="meta" data-action="radio" data-station="${i}">
+                <span class="title">${esc(station.name)}</span>
+              </button>
+              <button class="icon accent" data-action="radio" data-station="${i}" title="${esc(t.play)}">
+                <ha-icon icon="mdi:play"></ha-icon>
+              </button>
+            </div>`,
+        )
+        .join("");
+    }
+    const tiles = stations
+      .map(
+        (station, i) => `
+          <button class="tile" data-action="radio" data-station="${i}">
+            ${this._art(station.image, 300, "art", "mdi:radio")}
+            <span class="title">${esc(station.name)}</span>
+          </button>`,
+      )
+      .join("");
+    return `<div class="grid">${tiles}</div>`;
   }
 
   _albums(albums) {
